@@ -1,6 +1,6 @@
-﻿{
+{
   "name": "BGFLIX",
-  "description": "BGFLIX Cloudstream Ğ ĞµĞ¿Ğ¾Ğ·Ğ¸Ñ‚Ğ¾Ñ€Ğ¸Ğ¹ - Ğ‘ÑŠĞ»Ğ³Ğ°Ñ€ÑĞºĞ° Ğ¢ĞµĞ»ĞµĞ²Ğ¸Ğ·Ğ¸Ñ Ğ¸ Ğ¤Ğ¸Ğ»Ğ¼Ğ¸",
+  "description": "BGFLIX Cloudstream Repository",
   "manifestVersion": 1,
   "pluginLists": [
     "https://raw.githubusercontent.com/Bushidotv/BGFLIX/builds/plugins.json"
