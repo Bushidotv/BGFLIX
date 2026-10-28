@@ -154,27 +154,48 @@ class BGFLIXProvider : MainAPI() {
     }
 
 
+    private fun fixImageUrl(url: String): String {
+        val clean = url.trim().removePrefix(".").trim()
+        return when {
+            clean.startsWith("http://") || clean.startsWith("https://") -> clean
+            clean.startsWith("//") -> "https:$clean"
+            else -> "$mainUrl/${clean.trimStart('/')}"
+        }
+    }
+
     /**
-     * Extracts poster image handling lazy-loading (data-src, srcset, src)
+     * Extracts poster image handling lazy-loading (data-src, data-srcset, srcset, src)
      * avoiding transparent 1x1 placeholder base64 gifs.
      */
     private fun extractPoster(element: Element): String? {
         val imgEl = element.selectFirst("img") ?: return null
-        val raw = when {
-            imgEl.hasAttr("data-src") && imgEl.attr("data-src").isNotBlank() && !imgEl.attr("data-src").startsWith("data:") -> {
-                imgEl.attr("data-src")
-            }
-            imgEl.hasAttr("srcset") && imgEl.attr("srcset").isNotBlank() && !imgEl.attr("srcset").startsWith("data:") -> {
-                imgEl.attr("srcset").substringBefore(" ").substringBefore(",")
-            }
-            imgEl.hasAttr("src") && imgEl.attr("src").isNotBlank() && !imgEl.attr("src").startsWith("data:") -> {
-                imgEl.attr("src")
-            }
-            else -> ""
-        }.trim()
 
-        if (raw.isEmpty()) return null
-        return if (raw.startsWith("http")) raw else "$mainUrl/${raw.trimStart('/')}"
+        val dataSrc = imgEl.attr("data-src").trim()
+        if (dataSrc.isNotBlank() && !dataSrc.startsWith("data:")) {
+            return fixImageUrl(dataSrc)
+        }
+
+        val src = imgEl.attr("src").trim()
+        if (src.isNotBlank() && !src.startsWith("data:")) {
+            return fixImageUrl(src)
+        }
+
+        val dataOriginal = imgEl.attr("data-original").trim()
+        if (dataOriginal.isNotBlank() && !dataOriginal.startsWith("data:")) {
+            return fixImageUrl(dataOriginal)
+        }
+
+        val srcset = imgEl.attr("data-srcset").ifBlank { imgEl.attr("srcset") }.trim()
+        if (srcset.isNotBlank() && !srcset.startsWith("data:")) {
+            val parts = srcset.split(",").map { it.trim().split(" ").firstOrNull { p -> p.isNotBlank() } ?: "" }
+            val bestUrl = parts.lastOrNull { it.isNotBlank() && !it.startsWith("data:") }
+                ?: parts.firstOrNull { it.isNotBlank() && !it.startsWith("data:") }
+            if (!bestUrl.isNullOrBlank()) {
+                return fixImageUrl(bestUrl)
+            }
+        }
+
+        return null
     }
 
     // ==========================================
@@ -258,10 +279,7 @@ class BGFLIXProvider : MainAPI() {
         if (title.isEmpty() || href.isEmpty()) return null
 
         val fullUrl = if (href.startsWith("http")) href else "$mainUrl/${href.trimStart('/')}"
-        val rawImg = this.selectFirst("img")?.attr("src") ?: ""
-        val poster = if (rawImg.isNotEmpty()) {
-            if (rawImg.startsWith("http")) rawImg else "$mainUrl/${rawImg.trimStart('/')}"
-        } else null
+        val poster = extractPoster(this)
 
         val year = this.selectFirst(".item-poster__year time")?.text()?.trim()?.toIntOrNull()
         val quality = this.selectFirst(".film-quality")?.text()?.trim()
@@ -362,10 +380,9 @@ class BGFLIXProvider : MainAPI() {
                 ?: doc.selectFirst("h1")?.text()?.trim()
                 ?: "Филм"
 
-            val rawImg = doc.selectFirst(".pmovie__img img")?.attr("src") ?: ""
-            val poster = if (rawImg.isNotEmpty()) {
-                if (rawImg.startsWith("http")) rawImg else "$mainUrl/${rawImg.trimStart('/')}"
-            } else null
+            val poster = doc.selectFirst(".pmovie__img")?.let { extractPoster(it) }
+                ?: doc.selectFirst(".pmovie")?.let { extractPoster(it) }
+                ?: doc.selectFirst("meta[property='og:image']")?.attr("content")
 
             val plot = doc.selectFirst(".pmovie__text")?.text()?.trim()
                 ?: doc.selectFirst(".page__text")?.text()?.trim()
