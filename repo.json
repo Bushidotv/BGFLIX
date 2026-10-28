@@ -1,0 +1,8 @@
+{
+  "name": "BGFLIX",
+  "description": "BGFLIX Cloudstream Repository",
+  "manifestVersion": 1,
+  "pluginLists": [
+    "https://raw.githubusercontent.com/Bushidotv/BGFLIX/builds/plugins.json"
+  ]
+}

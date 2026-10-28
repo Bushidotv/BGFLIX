@@ -1,0 +1,24 @@
+[
+    {
+        "iconUrl": "https://raw.githubusercontent.com/Bushidotv/BGFLIX/master/icon.png",
+        "fileHash": "sha256-7f594ef7a8c9998d6cbe97b8f57ec054fa43ca1e7d0625f725422f03ef9e6657",
+        "apiVersion": 1,
+        "repositoryUrl": "https://github.com/Bushidotv/BGFLIX",
+        "fileSize": 45372,
+        "status": 1,
+        "language": "bg",
+        "authors": [
+            "BGFLIX"
+        ],
+        "tvTypes": [
+            "Live",
+            "Movie",
+            "TvSeries"
+        ],
+        "version": 8,
+        "internalName": "BGFLIX",
+        "description": "BGFLIX - \u0411\u044a\u043b\u0433\u0430\u0440\u0441\u043a\u0438 \u0422\u0435\u043b\u0435\u0432\u0438\u0437\u0438\u043e\u043d\u043d\u0438 \u041a\u0430\u043d\u0430\u043b\u0438, \u0424\u0438\u043b\u043c\u0438 \u0438 \u0421\u0435\u0440\u0438\u0430\u043b\u0438.",
+        "url": "https://raw.githubusercontent.com/Bushidotv/BGFLIX/builds/BGFLIX.cs3",
+        "name": "BGFLIX"
+    }
+]
