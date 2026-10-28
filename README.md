@@ -12,6 +12,6 @@ BGFLIX Ğµ Ğ¾Ñ„Ğ¸Ñ†Ğ¸Ğ°Ğ»ĞµĞ½ CloudStream Ñ€ĞµĞ¿Ğ¾
 3. Ğ’ÑŠĞ²ĞµĞ´ĞµÑ‚Ğµ Ğ¸Ğ¼Ğµ: `BGFLIX`
 4. Ğ’ÑŠĞ²ĞµĞ´ĞµÑ‚Ğµ URL:
 ```
-https://raw.githubusercontent.com/Bgflixx/BGFLIX/builds/plugins.json
+https://raw.githubusercontent.com/Bushidotv/BGFLIX/builds/plugins.json
 ```
 5. Ğ˜Ğ½ÑÑ‚Ğ°Ğ»Ğ¸Ñ€Ğ°Ğ¹Ñ‚Ğµ Ñ€Ğ°Ğ·ÑˆĞ¸Ñ€ĞµĞ½Ğ¸ĞµÑ‚Ğ¾ **BGFLIX**!

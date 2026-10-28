@@ -1,4 +1,4 @@
-package com.bgflix
+﻿package com.bgflix
 
 import android.net.Uri
 import com.lagradost.cloudstream3.*
@@ -32,8 +32,8 @@ class BGFLIXProvider : MainAPI() {
         "$mainUrl/seriali/" to "Сериали"
     )
 
-    private val defaultPoster = "https://raw.githubusercontent.com/Bgflixx/BGFLIX/master/icon.png"
-    private val rawLogoBase = "https://raw.githubusercontent.com/Bgflixx/BGFLIX/master/logos_hd"
+    private val defaultPoster = "https://raw.githubusercontent.com/Bushidotv/BGFLIX/master/icon.png"
+    private val rawLogoBase = "https://raw.githubusercontent.com/Bushidotv/BGFLIX/master/logos_hd"
 
     private val liveHeaders = mapOf(
         "User-Agent" to "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",

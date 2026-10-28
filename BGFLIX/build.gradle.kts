@@ -1,4 +1,4 @@
-dependencies {
+﻿dependencies {
     implementation("com.google.android.material:material:1.12.0")
     implementation("androidx.recyclerview:recyclerview:1.3.2")
 }
@@ -23,7 +23,7 @@ cloudstream {
     requiresResources = true
     language = "bg"
 
-    iconUrl = "https://raw.githubusercontent.com/Bgflixx/BGFLIX/master/icon.png"
+    iconUrl = "https://raw.githubusercontent.com/Bushidotv/BGFLIX/master/icon.png"
 }
 
 android {
