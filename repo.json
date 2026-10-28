@@ -1,8 +1,8 @@
-{
-  "name": "Bushido BG",
-  "description": "Bushido BG Cloudstream Eklentisi",
+﻿{
+  "name": "BGFLIX",
+  "description": "BGFLIX Cloudstream Ğ ĞµĞ¿Ğ¾Ğ·Ğ¸Ñ‚Ğ¾Ñ€Ğ¸Ğ¹ - Ğ‘ÑŠĞ»Ğ³Ğ°Ñ€ÑĞºĞ° Ğ¢ĞµĞ»ĞµĞ²Ğ¸Ğ·Ğ¸Ñ Ğ¸ Ğ¤Ğ¸Ğ»Ğ¼Ğ¸",
   "manifestVersion": 1,
   "pluginLists": [
-    "https://raw.githubusercontent.com/Bushidoxyz/My/builds/plugins.json"
+    "https://raw.githubusercontent.com/Bgflixx/BGFLIX/builds/plugins.json"
   ]
 }

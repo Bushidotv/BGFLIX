@@ -1,7 +1,4 @@
-rootProject.name = "Bushido"
-
-// This file sets what projects are included.
-// All new projects should get automatically included unless specified in the "disabled" variable.
+﻿rootProject.name = "BGFLIX"
 
 val disabled = listOf<String>()
 
@@ -15,5 +12,4 @@ fun File.eachDir(block: (File) -> Unit) {
     listFiles()?.filter { it.isDirectory }?.forEach { block(it) }
 }
 
-findProject(":ExampleProvider")?.name = "BushidoBG"
-
+findProject(":BGFLIX")?.name = "BGFLIX"

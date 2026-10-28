@@ -1,59 +1,17 @@
-**⚠️ This is currently under development, dont use it yet if you're not comfortable with constantly merging new changes**
+﻿# BGFLIX CloudStream Ğ ĞµĞ¿Ğ¾Ğ·Ğ¸Ñ‚Ğ¾Ñ€Ğ¸Ğ¹ ğŸ‡§ğŸ‡¬
 
-# `Cloudstream3 Plugin Repo Template`
+BGFLIX Ğµ Ğ¾Ñ„Ğ¸Ñ†Ğ¸Ğ°Ğ»ĞµĞ½ CloudStream Ñ€ĞµĞ¿Ğ¾Ğ·Ğ¸Ñ‚Ğ¾Ñ€Ğ¸Ğ¹ Ğ·Ğ° Ğ±ÑŠĞ»Ğ³Ğ°Ñ€ÑĞºĞ¸ Ñ‚ĞµĞ»ĞµĞ²Ğ¸Ğ·Ğ¸Ğ¾Ğ½Ğ½Ğ¸ ĞºĞ°Ğ½Ğ°Ğ»Ğ¸, Ñ„Ğ¸Ğ»Ğ¼Ğ¸ Ğ¸ ÑĞµÑ€Ğ¸Ğ°Ğ»Ğ¸.
 
-Template for a [Cloudstream3](https://github.com/recloudstream) plugin repo
+## ğŸ“º Ğ¡ÑŠĞ´ÑŠÑ€Ğ¶Ğ°Ğ½Ğ¸Ğµ
+- **Ğ¢Ğ’ ĞšĞ°Ğ½Ğ°Ğ»Ğ¸ Ğ½Ğ° Ğ–Ğ¸Ğ²Ğ¾ (HD):** bTV, Nova, Diema Sport 1/2/3, Max Sport 1/2/3/4, Eurosport 1/2, BNT 1/2/3/4, Star Channel, AXN, Epic Drama, Discovery, Nat Geo Ğ¸ Ğ¾Ñ‰Ğµ Ğ½Ğ°Ğ´ 40 ĞºĞ°Ğ½Ğ°Ğ»Ğ°!
+- **Ğ¤Ğ¸Ğ»Ğ¼Ğ¸ Ğ¸ Ğ¡ĞµÑ€Ğ¸Ğ°Ğ»Ğ¸:** Ğ’ÑĞ¸Ñ‡ĞºĞ¸ Ğ½Ğ¾Ğ²Ğ¸ Ñ„Ğ¸Ğ»Ğ¼Ğ¸, Ñ„Ğ¸Ğ»Ğ¼Ğ¸ Ñ Ğ±ÑŠĞ»Ğ³Ğ°Ñ€ÑĞºĞ¾ Ğ°ÑƒĞ´Ğ¸Ğ¾ (Ğ‘Ğ“ ĞÑƒĞ´Ğ¸Ğ¾), ĞµĞºÑˆÑŠĞ½, ĞºĞ¾Ğ¼ĞµĞ´Ğ¸Ğ¸, Ñ‚Ñ€Ğ¸Ğ»ÑŠÑ€Ğ¸, Ğ°Ğ½Ğ¸Ğ¼Ğ°Ñ†Ğ¸Ğ¸ Ğ¸ ÑĞµÑ€Ğ¸Ğ°Ğ»Ğ¸ Ñ Ğ±ÑŠÑ€Ğ·Ğ¸ ÑÑŠÑ€Ğ²ÑŠÑ€Ğ¸ (OK.ru, VOE, Filemoon, Vidon).
 
-**⚠️ Make sure you check "Include all branches" when using this template**
-
- 
-## Getting started with writing your first plugin
-
-This template includes 1 example plugin.
-
-1. Open the root build.gradle.kts, read the comments and replace all the placeholders
-2. Familiarize yourself with the project structure. Most files are commented
-3. Build or deploy your first plugin using:
-   - Windows: `.\gradlew.bat ExampleProvider:make` or `.\gradlew.bat ExampleProvider:deployWithAdb`
-   - Linux & Mac: `./gradlew ExampleProvider:make` or `./gradlew ExampleProvider:deployWithAdb`
-
-
-## Granting All Files Access on Newer Android Devices
-
-For local plugin testing, you need to grant the app "All Files Access" on newer Android devices (Android 11 and above). Here’s how to do it:
-
-### Using ADB
-
-* `adb shell appops set --uid PACKAGE_NAME MANAGE_EXTERNAL_STORAGE allow`
-* Replace `PACKAGE_NAME` with the name of the package for the Cloudstream3 version you are using:
-   - debug: `com.lagradost.cloudstream3.prerelease.debug`
-   - prerelease: `com.lagradost.cloudstream3.prerelease`
-   - stable: `com.lagradost.cloudstream3`
-
-### Manually
-
-1. **Open Settings**: Go to your device’s Settings menu.
-
-2. **Navigate to Special Access**:
-   - Tap on "Apps & notifications" or "Apps".
-   - Select "Special app access" or "Special access".
-
-3. **Select All Files Access**:
-   - Tap on "All files access".
-   - It may be under the three vertical dots menu towards the top of the screen.
-
-4. **Grant Access to the App**: Find the app in the list and tap on it to toggle it, if it is not already enabled.
-
-6. **Restart the App**: Close and reopen the app to apply the changes.
-
-
-## License
-
-Everything in this repo is released into the public domain. You may use it however you want with no conditions whatsoever
-
-
-## Attribution
-
-This template as well as the gradle plugin and the whole plugin system is **heavily** based on [Aliucord](https://github.com/Aliucord).
-*Go use it, it's a great mobile discord client mod!*
-# bushidoxyz
+## ğŸš€ Ğ˜Ğ½ÑÑ‚Ğ°Ğ»Ğ°Ñ†Ğ¸Ñ Ğ² CloudStream
+1. ĞÑ‚Ğ²Ğ¾Ñ€ĞµÑ‚Ğµ CloudStream -> **ĞĞ°ÑÑ‚Ñ€Ğ¾Ğ¹ĞºĞ¸ (Settings)** -> **Ğ Ğ°Ğ·ÑˆĞ¸Ñ€ĞµĞ½Ğ¸Ñ (Extensions)**.
+2. Ğ˜Ğ·Ğ±ĞµÑ€ĞµÑ‚Ğµ **Ğ”Ğ¾Ğ±Ğ°Ğ²ÑĞ½Ğµ Ğ½Ğ° Ñ…Ñ€Ğ°Ğ½Ğ¸Ğ»Ğ¸Ñ‰Ğµ (Add Repository)**.
+3. Ğ’ÑŠĞ²ĞµĞ´ĞµÑ‚Ğµ Ğ¸Ğ¼Ğµ: `BGFLIX`
+4. Ğ’ÑŠĞ²ĞµĞ´ĞµÑ‚Ğµ URL:
+```
+https://raw.githubusercontent.com/Bgflixx/BGFLIX/builds/plugins.json
+```
+5. Ğ˜Ğ½ÑÑ‚Ğ°Ğ»Ğ¸Ñ€Ğ°Ğ¹Ñ‚Ğµ Ñ€Ğ°Ğ·ÑˆĞ¸Ñ€ĞµĞ½Ğ¸ĞµÑ‚Ğ¾ **BGFLIX**!
