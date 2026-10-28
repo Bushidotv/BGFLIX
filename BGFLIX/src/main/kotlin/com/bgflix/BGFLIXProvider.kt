@@ -153,6 +153,30 @@ class BGFLIXProvider : MainAPI() {
         }
     }
 
+
+    /**
+     * Extracts poster image handling lazy-loading (data-src, srcset, src)
+     * avoiding transparent 1x1 placeholder base64 gifs.
+     */
+    private fun extractPoster(element: Element): String? {
+        val imgEl = element.selectFirst("img") ?: return null
+        val raw = when {
+            imgEl.hasAttr("data-src") && imgEl.attr("data-src").isNotBlank() && !imgEl.attr("data-src").startsWith("data:") -> {
+                imgEl.attr("data-src")
+            }
+            imgEl.hasAttr("srcset") && imgEl.attr("srcset").isNotBlank() && !imgEl.attr("srcset").startsWith("data:") -> {
+                imgEl.attr("srcset").substringBefore(" ").substringBefore(",")
+            }
+            imgEl.hasAttr("src") && imgEl.attr("src").isNotBlank() && !imgEl.attr("src").startsWith("data:") -> {
+                imgEl.attr("src")
+            }
+            else -> ""
+        }.trim()
+
+        if (raw.isEmpty()) return null
+        return if (raw.startsWith("http")) raw else "$mainUrl/${raw.trimStart('/')}"
+    }
+
     // ==========================================
     // 1. MAIN PAGE (LIVE CHANNELS FIRST, THEN MOVIES)
     // ==========================================
