@@ -1,4 +1,4 @@
-﻿package com.bgflix
+package com.bgflix
 
 import android.net.Uri
 import com.lagradost.cloudstream3.*
@@ -10,8 +10,9 @@ import org.json.JSONObject
 import org.json.JSONArray
 
 class BGFLIXProvider : MainAPI() {
-    override var mainUrl = "https://filmifen.com"
+    override var mainUrl = "https://v3-cinemeta.strem.io"
     private val seirsandukUrl = "https://www.seirsanduk.online"
+    private val filmifenUrl = "https://filmifen.com"
     override var name = "BGFLIX"
     override val supportedTypes = setOf(TvType.Live, TvType.Movie, TvType.TvSeries)
     override var lang = "bg"
@@ -23,19 +24,26 @@ class BGFLIXProvider : MainAPI() {
         "live_sports" to "ТВ Канали: Спорт",
         "live_movies" to "ТВ Канали: Филми & Сериали",
         "live_kids" to "ТВ Канали: Детски",
-        "$mainUrl/filmi/" to "Нови Филми",
-        "$mainUrl/filmi-bg-audio/" to "Филми с БГ Аудио",
-        "$mainUrl/filmi/ekshan/" to "Екшън Филми",
-        "$mainUrl/filmi/komediya/" to "Комедии",
-        "$mainUrl/filmi/trilari/" to "Трилъри",
-        "$mainUrl/filmi/fantastika/" to "Фантастика",
-        "$mainUrl/filmi/ujasi/" to "Ужаси",
-        "$mainUrl/filmi/detski/" to "Детски и Анимации",
-        "$mainUrl/seriali/" to "Сериали"
+        "cinemeta_movie_top" to "🎬 Популярни Филми (HD)",
+        "cinemeta_movie_Action" to "💥 Екшън (HD)",
+        "cinemeta_movie_Comedy" to "😂 Комедии (HD)",
+        "cinemeta_movie_Horror" to "👻 Ужаси (HD)",
+        "cinemeta_movie_Thriller" to "🔪 Трилъри (HD)",
+        "cinemeta_movie_Sci-Fi" to "🚀 Фантастика (HD)",
+        "cinemeta_movie_Drama" to "🎭 Драма (HD)",
+        "cinemeta_movie_Animation" to "🧸 Анимация (HD)",
+        "cinemeta_series_top" to "📺 Популярни Сериали (HD)",
+        "cinemeta_series_Drama" to "📺 Сериали: Драма (HD)",
+        "cinemeta_series_Comedy" to "📺 Сериали: Комедия (HD)",
+        "filmifen_bg" to "🇧🇬 Филми с БГ Аудио"
     )
 
     private val defaultPoster = "https://raw.githubusercontent.com/Bushidotv/BGFLIX/master/icon.png"
     private val rawLogoBase = "https://raw.githubusercontent.com/Bushidotv/BGFLIX/master/logos_hd"
+
+    private val commonHeaders = mapOf(
+        "User-Agent" to "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+    )
 
     private val liveHeaders = mapOf(
         "User-Agent" to "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
@@ -46,7 +54,7 @@ class BGFLIXProvider : MainAPI() {
 
     private val movieHeaders = mapOf(
         "User-Agent" to "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-        "Referer"    to "$mainUrl/",
+        "Referer"    to "$filmifenUrl/",
         "Accept"     to "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
         "Accept-Language" to "bg,en;q=0.9"
     )
@@ -161,7 +169,7 @@ class BGFLIXProvider : MainAPI() {
         return when {
             clean.startsWith("http://") || clean.startsWith("https://") -> clean
             clean.startsWith("//") -> "https:$clean"
-            else -> "$mainUrl/${clean.trimStart('/')}"
+            else -> "$filmifenUrl/${clean.trimStart('/')}"
         }
     }
 
@@ -201,86 +209,182 @@ class BGFLIXProvider : MainAPI() {
     }
 
     // ==========================================
-    // 1. MAIN PAGE (LIVE CHANNELS FIRST, THEN MOVIES)
+    // 1. MAIN PAGE (LIVE CHANNELS + HD MOVIES FROM CINEMETA + BG AUDIO FROM FILMIFEN)
     // ==========================================
     override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse {
         if (request.data.startsWith("live_")) {
-            // Live TV Row (from Seirsanduk)
-            val channelList = mutableListOf<SearchResponse>()
-            val htmlResponse = app.get("$seirsandukUrl/", headers = liveHeaders).text
-            val document = Jsoup.parse(htmlResponse)
-            val channelElements = document.select("#channels li a")
-
-            channelElements.forEach { element ->
-                val title = element.text().trim()
-                val href = element.attr("href")
-                val img = element.select("img").attr("src")
-                val posterUrl = getHighResLogo(title, img)
-
-                if (title.isNotEmpty() && href.isNotEmpty()) {
-                    val fullUrl = if (href.startsWith("http")) href else "$seirsandukUrl/${href.trimStart('/')}"
-
-                    val lowerTitle = title.lowercase()
-                    val isSport = lowerTitle.contains("sport") || lowerTitle.contains("diema") || lowerTitle.contains("euro") || lowerTitle.contains("ring") || lowerTitle.contains("max")
-                    val isMovie = lowerTitle.contains("kino") || lowerTitle.contains("cinema") || lowerTitle.contains("star") || lowerTitle.contains("drama") || lowerTitle.contains("axn") || lowerTitle.contains("action")
-                    val isKids = lowerTitle.contains("kid") || lowerTitle.contains("cartoon") || lowerTitle.contains("disney") || lowerTitle.contains("nick")
-
-                    val matchesCategory = when (request.data) {
-                        "live_sports" -> isSport
-                        "live_movies" -> isMovie
-                        "live_kids"   -> isKids
-                        else          -> true
-                    }
-
-                    if (matchesCategory) {
-                        channelList.add(
-                            newLiveSearchResponse(
-                                name = title,
-                                url  = fullUrl,
-                                type = TvType.Live
-                            ) {
-                                this.posterUrl = posterUrl
-                            }
-                        )
-                    }
-                }
-            }
-            return newHomePageResponse(
-                HomePageList(request.name, channelList, isHorizontalImages = true),
-                hasNext = false
-            )
-        } else {
-            // Movies / Series Row (from Filmifen)
-            val url = if (page <= 1) {
-                request.data
-            } else {
-                if (request.data.endsWith("/")) "${request.data}page/$page/" else "${request.data}/page/$page/"
-            }
-
-            val html = app.get(url, headers = movieHeaders).text
-            val doc = Jsoup.parse(html)
-            val items = doc.select(".item-poster, .item.grid-item, #dle-content a.item").mapNotNull { el ->
-                el.toMovieSearchResult()
-            }
-
-            val hasNext = doc.select(".pages-block a, .navigation a, a[href*='/page/']").any {
-                it.text().trim() == "${page + 1}" || it.attr("href").contains("/page/${page + 1}/")
-            }
-
-            return newHomePageResponse(
-                HomePageList(request.name, items),
-                hasNext = hasNext
-            )
+            return getLiveChannelsPage(request)
+        } else if (request.data.startsWith("cinemeta_")) {
+            return getCinemetaPage(page, request)
+        } else if (request.data == "filmifen_bg") {
+            return getFilmifenBGPage(page, request)
         }
+
+        return newHomePageResponse(HomePageList(request.name, emptyList()), hasNext = false)
     }
 
-    private fun Element.toMovieSearchResult(): SearchResponse? {
+    /**
+     * Live TV channels from Seirsanduk - unchanged from v4.
+     */
+    private suspend fun getLiveChannelsPage(request: MainPageRequest): HomePageResponse {
+        val channelList = mutableListOf<SearchResponse>()
+        val htmlResponse = app.get("$seirsandukUrl/", headers = liveHeaders).text
+        val document = Jsoup.parse(htmlResponse)
+        val channelElements = document.select("#channels li a")
+
+        channelElements.forEach { element ->
+            val title = element.text().trim()
+            val href = element.attr("href")
+            val img = element.select("img").attr("src")
+            val posterUrl = getHighResLogo(title, img)
+
+            if (title.isNotEmpty() && href.isNotEmpty()) {
+                val fullUrl = if (href.startsWith("http")) href else "$seirsandukUrl/${href.trimStart('/')}"
+
+                val lowerTitle = title.lowercase()
+                val isSport = lowerTitle.contains("sport") || lowerTitle.contains("diema") || lowerTitle.contains("euro") || lowerTitle.contains("ring") || lowerTitle.contains("max")
+                val isMovie = lowerTitle.contains("kino") || lowerTitle.contains("cinema") || lowerTitle.contains("star") || lowerTitle.contains("drama") || lowerTitle.contains("axn") || lowerTitle.contains("action")
+                val isKids = lowerTitle.contains("kid") || lowerTitle.contains("cartoon") || lowerTitle.contains("disney") || lowerTitle.contains("nick")
+
+                val matchesCategory = when (request.data) {
+                    "live_sports" -> isSport
+                    "live_movies" -> isMovie
+                    "live_kids"   -> isKids
+                    else          -> true
+                }
+
+                if (matchesCategory) {
+                    channelList.add(
+                        newLiveSearchResponse(
+                            name = title,
+                            url  = fullUrl,
+                            type = TvType.Live
+                        ) {
+                            this.posterUrl = posterUrl
+                        }
+                    )
+                }
+            }
+        }
+        return newHomePageResponse(
+            HomePageList(request.name, channelList, isHorizontalImages = true),
+            hasNext = false
+        )
+    }
+
+    /**
+     * HD Movies & Series from Cinemeta (Stremio catalog API).
+     * Provides automatic pagination and genre filtering.
+     * Every movie/series comes with IMDb ID for HD stream resolution.
+     */
+    private suspend fun getCinemetaPage(page: Int, request: MainPageRequest): HomePageResponse {
+        // Parse request.data format: cinemeta_{type}_{category}
+        // Examples: cinemeta_movie_top, cinemeta_movie_Action, cinemeta_series_top
+        val parts = request.data.removePrefix("cinemeta_").split("_", limit = 2)
+        val type = parts.getOrElse(0) { "movie" } // "movie" or "series"
+        val category = parts.getOrElse(1) { "top" }
+
+        val skip = if (page <= 1) 0 else (page - 1) * 50
+        val catalogUrl = if (category == "top") {
+            if (skip > 0) {
+                "$mainUrl/catalog/$type/top/skip=$skip.json"
+            } else {
+                "$mainUrl/catalog/$type/top.json"
+            }
+        } else {
+            // Genre filter
+            if (skip > 0) {
+                "$mainUrl/catalog/$type/top/genre=$category&skip=$skip.json"
+            } else {
+                "$mainUrl/catalog/$type/top/genre=$category.json"
+            }
+        }
+
+        val items = mutableListOf<SearchResponse>()
+        try {
+            val response = app.get(catalogUrl, headers = commonHeaders).text
+            val json = JSONObject(response)
+            val metas = json.optJSONArray("metas") ?: JSONArray()
+
+            for (i in 0 until metas.length()) {
+                val meta = metas.optJSONObject(i) ?: continue
+                val imdbId = meta.optString("id", "").trim()
+                val name = meta.optString("name", "").trim()
+                val poster = meta.optString("poster", "").trim()
+                val yearStr = meta.optString("releaseInfo", "").trim()
+                val year = yearStr.take(4).toIntOrNull()
+                val imdbRating = meta.optString("imdbRating", "").trim()
+
+                if (name.isEmpty() || imdbId.isEmpty()) continue
+
+                // Encode IMDb data in the URL for load() to parse
+                val dataUrl = "bgflix://cinemeta/$type/$imdbId"
+
+                val displayName = if (imdbRating.isNotBlank()) {
+                    "$name ⭐$imdbRating"
+                } else {
+                    name
+                }
+
+                if (type == "series") {
+                    items.add(
+                        newTvSeriesSearchResponse(displayName, dataUrl, TvType.TvSeries) {
+                            this.posterUrl = poster
+                            this.year = year
+                            this.quality = SearchQuality.HD
+                        }
+                    )
+                } else {
+                    items.add(
+                        newMovieSearchResponse(displayName, dataUrl, TvType.Movie) {
+                            this.posterUrl = poster
+                            this.year = year
+                            this.quality = SearchQuality.HD
+                        }
+                    )
+                }
+            }
+        } catch (e: Exception) { }
+
+        return newHomePageResponse(
+            HomePageList(request.name, items),
+            hasNext = items.size >= 40
+        )
+    }
+
+    /**
+     * Bulgarian Audio movies from Filmifen (kept as bonus category).
+     */
+    private suspend fun getFilmifenBGPage(page: Int, request: MainPageRequest): HomePageResponse {
+        val url = if (page <= 1) {
+            "$filmifenUrl/filmi-bg-audio/"
+        } else {
+            "$filmifenUrl/filmi-bg-audio/page/$page/"
+        }
+
+        val html = app.get(url, headers = movieHeaders).text
+        val doc = Jsoup.parse(html)
+        val items = doc.select(".item-poster, .item.grid-item, #dle-content a.item").mapNotNull { el ->
+            el.toFilmifenSearchResult()
+        }
+
+        val hasNext = doc.select(".pages-block a, .navigation a, a[href*='/page/']").any {
+            it.text().trim() == "${page + 1}" || it.attr("href").contains("/page/${page + 1}/")
+        }
+
+        return newHomePageResponse(
+            HomePageList(request.name, items),
+            hasNext = hasNext
+        )
+    }
+
+    private fun Element.toFilmifenSearchResult(): SearchResponse? {
         val title = this.selectFirst(".item-poster__title")?.text()?.trim()
             ?: this.attr("aria-label").replace("Гледайте на ", "").replace("Гледай ", "").trim()
         val href = this.attr("href").trim()
         if (title.isEmpty() || href.isEmpty()) return null
 
-        val fullUrl = if (href.startsWith("http")) href else "$mainUrl/${href.trimStart('/')}"
+        val fullUrl = if (href.startsWith("http")) href else "$filmifenUrl/${href.trimStart('/')}"
         val poster = extractPoster(this)
 
         val year = this.selectFirst(".item-poster__year time")?.text()?.trim()?.toIntOrNull()
@@ -303,7 +407,7 @@ class BGFLIXProvider : MainAPI() {
     }
 
     // ==========================================
-    // 2. SEARCH (BOTH LIVE TV & MOVIES)
+    // 2. SEARCH (LIVE TV + CINEMETA HD + FILMIFEN BG)
     // ==========================================
     override suspend fun search(query: String): List<SearchResponse> {
         val results = mutableListOf<SearchResponse>()
@@ -334,15 +438,77 @@ class BGFLIXProvider : MainAPI() {
             }
         } catch (e: Exception) { }
 
-        // 2. Search Filmifen Movies & Series
+        // 2. Search Cinemeta for HD Movies
         try {
             val encoded = URLEncoder.encode(cleanQuery, "UTF-8")
-            val searchUrl = "$mainUrl/index.php?do=search&subaction=search&story=$encoded"
+            val searchUrl = "$mainUrl/catalog/movie/top/search=$encoded.json"
+            val response = app.get(searchUrl, headers = commonHeaders).text
+            val json = JSONObject(response)
+            val metas = json.optJSONArray("metas") ?: JSONArray()
+
+            for (i in 0 until metas.length()) {
+                val meta = metas.optJSONObject(i) ?: continue
+                val imdbId = meta.optString("id", "").trim()
+                val name = meta.optString("name", "").trim()
+                val poster = meta.optString("poster", "").trim()
+                val yearStr = meta.optString("releaseInfo", "").trim()
+                val year = yearStr.take(4).toIntOrNull()
+                val imdbRating = meta.optString("imdbRating", "").trim()
+
+                if (name.isEmpty() || imdbId.isEmpty()) continue
+
+                val dataUrl = "bgflix://cinemeta/movie/$imdbId"
+                val displayName = if (imdbRating.isNotBlank()) "$name ⭐$imdbRating" else name
+
+                results.add(
+                    newMovieSearchResponse(displayName, dataUrl, TvType.Movie) {
+                        this.posterUrl = poster
+                        this.year = year
+                        this.quality = SearchQuality.HD
+                    }
+                )
+            }
+        } catch (e: Exception) { }
+
+        // 3. Search Cinemeta for HD Series
+        try {
+            val encoded = URLEncoder.encode(cleanQuery, "UTF-8")
+            val searchUrl = "$mainUrl/catalog/series/top/search=$encoded.json"
+            val response = app.get(searchUrl, headers = commonHeaders).text
+            val json = JSONObject(response)
+            val metas = json.optJSONArray("metas") ?: JSONArray()
+
+            for (i in 0 until metas.length()) {
+                val meta = metas.optJSONObject(i) ?: continue
+                val imdbId = meta.optString("id", "").trim()
+                val name = meta.optString("name", "").trim()
+                val poster = meta.optString("poster", "").trim()
+                val yearStr = meta.optString("releaseInfo", "").trim()
+                val year = yearStr.take(4).toIntOrNull()
+
+                if (name.isEmpty() || imdbId.isEmpty()) continue
+
+                val dataUrl = "bgflix://cinemeta/series/$imdbId"
+
+                results.add(
+                    newTvSeriesSearchResponse(name, dataUrl, TvType.TvSeries) {
+                        this.posterUrl = poster
+                        this.year = year
+                        this.quality = SearchQuality.HD
+                    }
+                )
+            }
+        } catch (e: Exception) { }
+
+        // 4. Search Filmifen for BG Audio content
+        try {
+            val encoded = URLEncoder.encode(cleanQuery, "UTF-8")
+            val searchUrl = "$filmifenUrl/index.php?do=search&subaction=search&story=$encoded"
             val movieHtml = app.get(searchUrl, headers = movieHeaders).text
             val movieDoc = Jsoup.parse(movieHtml)
 
             movieDoc.select(".item-poster, .item.grid-item, #dle-content a.item").forEach { el ->
-                el.toMovieSearchResult()?.let { results.add(it) }
+                el.toFilmifenSearchResult()?.let { results.add(it) }
             }
         } catch (e: Exception) { }
 
@@ -350,98 +516,224 @@ class BGFLIXProvider : MainAPI() {
     }
 
     // ==========================================
-    // 3. LOAD (LIVE CHANNEL OR MOVIE / SERIES)
+    // 3. LOAD (LIVE CHANNEL, CINEMETA HD, OR FILMIFEN BG)
     // ==========================================
     override suspend fun load(url: String): LoadResponse {
         if (url.contains("seirsanduk.online")) {
-            // Live TV Channel
-            val html = app.get(url, headers = liveHeaders).text
-            val doc = Jsoup.parse(html)
-            val title = doc.select("div.buttonsLeft h1 a").text().trim().ifEmpty {
-                doc.title().trim().ifEmpty { "BGFLIX ТВ" }
+            return loadLiveChannel(url)
+        } else if (url.startsWith("bgflix://cinemeta/")) {
+            return loadCinemeta(url)
+        } else {
+            return loadFilmifen(url)
+        }
+    }
+
+    /**
+     * Load a live TV channel detail page.
+     */
+    private suspend fun loadLiveChannel(url: String): LoadResponse {
+        val html = app.get(url, headers = liveHeaders).text
+        val doc = Jsoup.parse(html)
+        val title = doc.select("div.buttonsLeft h1 a").text().trim().ifEmpty {
+            doc.title().trim().ifEmpty { "BGFLIX ТВ" }
+        }
+        val poster = getHighResLogo(title, "")
+        val description = doc.select("#program .nav").text().trim().ifEmpty {
+            "BGFLIX Телевизия на живо."
+        }
+
+        return newLiveStreamLoadResponse(
+            name    = title,
+            url     = url,
+            dataUrl = url
+        ) {
+            this.posterUrl = poster
+            this.plot      = description
+        }
+    }
+
+    /**
+     * Load movie/series details from Cinemeta API.
+     * URL format: bgflix://cinemeta/{type}/{imdbId}
+     */
+    private suspend fun loadCinemeta(url: String): LoadResponse {
+        val parts = url.removePrefix("bgflix://cinemeta/").split("/")
+        val type = parts.getOrElse(0) { "movie" }
+        val imdbId = parts.getOrElse(1) { "" }
+
+        val metaUrl = "$mainUrl/meta/$type/$imdbId.json"
+        val response = app.get(metaUrl, headers = commonHeaders).text
+        val json = JSONObject(response)
+        val meta = json.getJSONObject("meta")
+
+        val name = meta.optString("name", "Film")
+        val poster = meta.optString("poster", "")
+        val background = meta.optString("background", "")
+        val description = meta.optString("description", "")
+        val year = meta.optString("year", "").toIntOrNull()
+            ?: meta.optString("releaseInfo", "").take(4).toIntOrNull()
+        val runtime = meta.optString("runtime", "")
+        val imdbRating = meta.optString("imdbRating", "")
+        val genres = mutableListOf<String>()
+        val genresArr = meta.optJSONArray("genres")
+        if (genresArr != null) {
+            for (i in 0 until genresArr.length()) {
+                genres.add(genresArr.optString(i))
             }
-            val poster = getHighResLogo(title, "")
-            val description = doc.select("#program .nav").text().trim().ifEmpty {
-                "BGFLIX Телевизия на живо."
+        }
+        val cast = mutableListOf<String>()
+        val castArr = meta.optJSONArray("cast")
+        if (castArr != null) {
+            for (i in 0 until minOf(castArr.length(), 10)) {
+                cast.add(castArr.optString(i))
+            }
+        }
+        val director = meta.optString("director", "")
+
+        // Get TMDB ID for embed providers
+        val tmdbId = meta.optInt("moviedb_id", 0)
+
+        // Build dataUrl containing all info needed for loadLinks
+        // Format: imdbId|tmdbId|type
+        val dataPayload = "$imdbId|$tmdbId|$type"
+
+        val plot = buildString {
+            if (imdbRating.isNotBlank()) append("⭐ IMDb: $imdbRating\n")
+            if (runtime.isNotBlank()) append("⏱ $runtime\n")
+            if (director.isNotBlank()) append("🎬 Режисьор: $director\n")
+            if (cast.isNotEmpty()) append("🎭 Актьори: ${cast.joinToString(", ")}\n")
+            append("\n$description")
+        }
+
+        return if (type == "series") {
+            // Extract episodes from Cinemeta
+            val episodes = mutableListOf<Episode>()
+            val videos = meta.optJSONArray("videos") ?: JSONArray()
+
+            for (i in 0 until videos.length()) {
+                val video = videos.optJSONObject(i) ?: continue
+                val season = video.optInt("season", 0)
+                val episode = video.optInt("episode", 0)
+                val epName = video.optString("name", "Episode $episode")
+                val epId = video.optString("id", "")
+                val thumbnail = video.optString("thumbnail", "")
+
+                if (season <= 0 || episode <= 0) continue
+
+                // Episode data: imdbId|tmdbId|series|season|episode
+                val epData = "$imdbId|$tmdbId|series|$season|$episode"
+
+                episodes.add(
+                    newEpisode(epData) {
+                        this.name = epName
+                        this.season = season
+                        this.episode = episode
+                        this.posterUrl = thumbnail.ifBlank { null }
+                    }
+                )
             }
 
-            return newLiveStreamLoadResponse(
-                name    = title,
-                url     = url,
-                dataUrl = url
-            ) {
+            // Sort episodes by season then episode
+            episodes.sortWith(compareBy({ it.season }, { it.episode }))
+
+            newTvSeriesLoadResponse(name, url, TvType.TvSeries, episodes) {
                 this.posterUrl = poster
-                this.plot      = description
+                this.backgroundPosterUrl = background
+                this.plot = plot
+                this.year = year
+                this.tags = genres
             }
         } else {
-            // Movie or TV Series from Filmifen
-            val html = app.get(url, headers = movieHeaders).text
-            val doc = Jsoup.parse(html)
+            newMovieLoadResponse(name, url, TvType.Movie, dataPayload) {
+                this.posterUrl = poster
+                this.backgroundPosterUrl = background
+                this.plot = plot
+                this.year = year
+                this.tags = genres
+            }
+        }
+    }
 
-            val title = doc.selectFirst("h1.pmovie__title")?.text()?.trim()
-                ?: doc.selectFirst("h1")?.text()?.trim()
-                ?: "Филм"
+    /**
+     * Load movie/series from Filmifen (BG Audio content).
+     */
+    private suspend fun loadFilmifen(url: String): LoadResponse {
+        val html = app.get(url, headers = movieHeaders).text
+        val doc = Jsoup.parse(html)
 
-            val poster = doc.selectFirst(".pmovie__img")?.let { extractPoster(it) }
-                ?: doc.selectFirst(".pmovie")?.let { extractPoster(it) }
-                ?: doc.selectFirst("meta[property='og:image']")?.attr("content")
+        val title = doc.selectFirst("h1.pmovie__title")?.text()?.trim()
+            ?: doc.selectFirst("h1")?.text()?.trim()
+            ?: "Филм"
 
-            val plot = doc.selectFirst(".pmovie__text")?.text()?.trim()
-                ?: doc.selectFirst(".page__text")?.text()?.trim()
+        val poster = doc.selectFirst(".pmovie__img")?.let { extractPoster(it) }
+            ?: doc.selectFirst(".pmovie")?.let { extractPoster(it) }
+            ?: doc.selectFirst("meta[property='og:image']")?.attr("content")
 
-            val year = doc.selectFirst(".pmovie-info a[href*='/year/']")?.text()?.trim()?.toIntOrNull()
-            val tags = doc.select(".pmovie-info a[href*='/filmi/'], .pmovie-info a[href*='/seriali/']").map { it.text().trim() }
+        val plot = doc.selectFirst(".pmovie__text")?.text()?.trim()
+            ?: doc.selectFirst(".page__text")?.text()?.trim()
 
-            val isSeries = url.contains("/seriali/")
+        val year = doc.selectFirst(".pmovie-info a[href*='/year/']")?.text()?.trim()?.toIntOrNull()
+        val tags = doc.select(".pmovie-info a[href*='/filmi/'], .pmovie-info a[href*='/seriali/']").map { it.text().trim() }
 
-            return if (isSeries) {
-                // TV Series
-                val episodes = mutableListOf<Episode>()
-                val epLinks = doc.select("a[href*='/seriali/']")
-                epLinks.forEach { epLink ->
-                    val epTitle = epLink.text().trim()
-                    val epHref = epLink.attr("href").trim()
-                    if (epHref.isNotEmpty() && epTitle.isNotEmpty() && epHref != url) {
-                        val fullEpHref = if (epHref.startsWith("http")) epHref else "$mainUrl/${epHref.trimStart('/')}"
-                        val epMatch = Regex("""season-(\d+)-episode-(\d+)""").find(fullEpHref)
-                        episodes.add(
-                            newEpisode(fullEpHref) {
-                                this.name = epTitle
-                                this.season = epMatch?.groupValues?.get(1)?.toIntOrNull()
-                                this.episode = epMatch?.groupValues?.get(2)?.toIntOrNull()
-                            }
-                        )
-                    }
-                }
+        val isSeries = url.contains("/seriali/")
 
-                if (episodes.isEmpty()) {
+        // Try to extract IMDb ID from Filmifen page for HD fallback
+        val imdbId = doc.selectFirst("a[href*='imdb.com/title/']")?.attr("href")?.let {
+            Regex("""tt\d+""").find(it)?.value
+        }
+
+        return if (isSeries) {
+            val episodes = mutableListOf<Episode>()
+            val epLinks = doc.select("a[href*='/seriali/']")
+            epLinks.forEach { epLink ->
+                val epTitle = epLink.text().trim()
+                val epHref = epLink.attr("href").trim()
+                if (epHref.isNotEmpty() && epTitle.isNotEmpty() && epHref != url) {
+                    val fullEpHref = if (epHref.startsWith("http")) epHref else "$filmifenUrl/${epHref.trimStart('/')}"
+                    val epMatch = Regex("""season-(\d+)-episode-(\d+)""").find(fullEpHref)
                     episodes.add(
-                        newEpisode(url) {
-                            this.name = title
+                        newEpisode(fullEpHref) {
+                            this.name = epTitle
+                            this.season = epMatch?.groupValues?.get(1)?.toIntOrNull()
+                            this.episode = epMatch?.groupValues?.get(2)?.toIntOrNull()
                         }
                     )
                 }
+            }
 
-                newTvSeriesLoadResponse(title, url, TvType.TvSeries, episodes) {
-                    this.posterUrl = poster
-                    this.plot      = plot
-                    this.year      = year
-                    this.tags      = tags
-                }
+            if (episodes.isEmpty()) {
+                episodes.add(
+                    newEpisode(url) {
+                        this.name = title
+                    }
+                )
+            }
+
+            newTvSeriesLoadResponse(title, url, TvType.TvSeries, episodes) {
+                this.posterUrl = poster
+                this.plot      = plot
+                this.year      = year
+                this.tags      = tags
+            }
+        } else {
+            // For Filmifen movies, pass imdbId if available for HD+subs, else pass URL
+            val dataPayload = if (!imdbId.isNullOrBlank()) {
+                "filmifen|$url|$imdbId"
             } else {
-                // Movie
-                newMovieLoadResponse(title, url, TvType.Movie, url) {
-                    this.posterUrl = poster
-                    this.plot      = plot
-                    this.year      = year
-                    this.tags      = tags
-                }
+                "filmifen|$url|"
+            }
+
+            newMovieLoadResponse(title, url, TvType.Movie, dataPayload) {
+                this.posterUrl = poster
+                this.plot      = plot
+                this.year      = year
+                this.tags      = tags
             }
         }
     }
 
     // ==========================================
-    // 4. LOAD LINKS (LIVE HLS OR MOVIE SERVERS)
+    // 4. LOAD LINKS (MULTI-SERVER HD STREAMS + AUTO BG SUBTITLES)
     // ==========================================
 
     /**
@@ -494,229 +786,397 @@ class BGFLIXProvider : MainAPI() {
         var foundAny = false
 
         if (data.contains("seirsanduk.online")) {
-            // Live TV Streams
-            val streamHeaders = mapOf(
-                "User-Agent" to "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-                "Referer"    to "$seirsandukUrl/",
-                "Origin"     to seirsandukUrl,
-                "Accept"     to "*/*"
-            )
-            val m3u8Regex = Regex("""file:\s*['"](https?://[^'"]+\.m3u8[^'"]*)['"]""")
-
-            try {
-                val defaultHtml = app.get(data, headers = liveHeaders).text
-                val defaultStream = m3u8Regex.find(defaultHtml)?.groupValues?.get(1)
-                if (!defaultStream.isNullOrEmpty()) {
-                    callback.invoke(
-                        newExtractorLink(
-                            source  = name,
-                            name    = "$name - Основен Сървър (HD)",
-                            url     = defaultStream,
-                            type    = ExtractorLinkType.M3U8
-                        ) {
-                            this.referer = "$seirsandukUrl/"
-                            this.headers = streamHeaders
-                            this.quality = Qualities.P1080.value
-                        }
-                    )
-                    foundAny = true
-                }
-
-                val channelId = Uri.parse(data).getQueryParameter("id")
-                if (!channelId.isNullOrEmpty()) {
-                    // Player 2
-                    try {
-                        val p2Html = app.get("$seirsandukUrl/?player=12&id=$channelId&pass=", headers = liveHeaders).text
-                        val p2Stream = m3u8Regex.find(p2Html)?.groupValues?.get(1)
-                        if (!p2Stream.isNullOrEmpty() && p2Stream != defaultStream) {
-                            callback.invoke(
-                                newExtractorLink(
-                                    source  = name,
-                                    name    = "$name - Резервен Сървър 1",
-                                    url     = p2Stream,
-                                    type    = ExtractorLinkType.M3U8
-                                ) {
-                                    this.referer = "$seirsandukUrl/"
-                                    this.headers = streamHeaders
-                                    this.quality = Qualities.P1080.value
-                                }
-                            )
-                            foundAny = true
-                        }
-                    } catch (e: Exception) { }
-
-                    // Player 3
-                    try {
-                        val p3Html = app.get("$seirsandukUrl/?player=13&id=$channelId&pass=", headers = liveHeaders).text
-                        val p3Stream = m3u8Regex.find(p3Html)?.groupValues?.get(1)
-                        if (!p3Stream.isNullOrEmpty() && p3Stream != defaultStream) {
-                            callback.invoke(
-                                newExtractorLink(
-                                    source  = name,
-                                    name    = "$name - Резервен Сървър 2",
-                                    url     = p3Stream,
-                                    type    = ExtractorLinkType.M3U8
-                                ) {
-                                    this.referer = "$seirsandukUrl/"
-                                    this.headers = streamHeaders
-                                    this.quality = Qualities.P1080.value
-                                }
-                            )
-                            foundAny = true
-                        }
-                    } catch (e: Exception) { }
-                }
-            } catch (e: Exception) { }
+            // ========== LIVE TV STREAMS (unchanged) ==========
+            foundAny = loadLiveLinks(data, callback)
+        } else if (data.startsWith("filmifen|")) {
+            // ========== FILMIFEN BG AUDIO CONTENT ==========
+            foundAny = loadFilmifenLinks(data, subtitleCallback, callback)
         } else {
-            // Movie / Series Streams (Multi-Server: Filmi2k 1080p + Filmifen BG Dub + Global HD + Auto BG Subs)
-            try {
-                val html = app.get(data, headers = movieHeaders).text
-                val doc = Jsoup.parse(html)
+            // ========== CINEMETA HD CONTENT ==========
+            foundAny = loadHDLinks(data, subtitleCallback, callback)
+        }
 
-                // 1. Extract IMDb ID & Episode numbers for Auto Bulgarian Subtitles
-                val imdbId = doc.selectFirst("a[href*='imdb.com/title/']")?.attr("href")?.let {
-                    Regex("""tt\d+""").find(it)?.value
-                }
+        return foundAny
+    }
 
-                val isSeries = data.contains("/seriali/")
-                val epMatch = Regex("""season-(\d+)-episode-(\d+)""").find(data)
-                val season = epMatch?.groupValues?.get(1)?.toIntOrNull()
-                val episode = epMatch?.groupValues?.get(2)?.toIntOrNull()
+    /**
+     * Live TV stream extraction - unchanged from v4.
+     */
+    private suspend fun loadLiveLinks(data: String, callback: (ExtractorLink) -> Unit): Boolean {
+        var foundAny = false
+        val streamHeaders = mapOf(
+            "User-Agent" to "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+            "Referer"    to "$seirsandukUrl/",
+            "Origin"     to seirsandukUrl,
+            "Accept"     to "*/*"
+        )
+        val m3u8Regex = Regex("""file:\s*['"](https?://[^'"]+\.m3u8[^'"]*)['"]\s*""")
 
-                // Trigger automatic Bulgarian subtitles from Subsunacs / Subs.sab / Subsland
-                if (!imdbId.isNullOrBlank()) {
-                    fetchBulgarianSubtitles(imdbId, season, episode, subtitleCallback)
-                }
-
-                val title = doc.selectFirst("h1.pmovie__title")?.text()?.trim()
-                    ?: doc.selectFirst("h1")?.text()?.trim()
-                    ?: ""
-                val cleanTitle = title.replace(Regex("""\(\d{4}\).*"""), "").replace(Regex("""[^\p{L}\p{N}\s]"""), "").trim()
-
-                // 2. SERVER 1: Filmi2k Native 1080p Full HD (WEB-DL with high-bitrate stream)
-                if (!isSeries && cleanTitle.isNotBlank()) {
-                    try {
-                        val searchTerms = listOfNotNull(
-                            cleanTitle,
-                            doc.selectFirst("a.pmovie-info__imdb-link")?.attr("title")?.substringAfter(" - ")?.trim()
-                        ).distinct()
-
-                        for (term in searchTerms) {
-                            val searchUrl = "https://www.filmi2k.com/?s=" + URLEncoder.encode(term, "UTF-8")
-                            val searchHtml = app.get(searchUrl, headers = mapOf("User-Agent" to "Mozilla/5.0")).text
-                            val matchLink = Regex("""href="(https://www\.filmi2k\.com/[^"/]+-[0-9]{4}/)"""").find(searchHtml)?.groupValues?.get(1)
-                            if (matchLink != null) {
-                                val filmiHtml = app.get(matchLink, headers = mapOf("User-Agent" to "Mozilla/5.0")).text
-                                val rtpMatch = Regex("""src="(/?[^"]*rtp=[^"]*)"""").find(filmiHtml)?.groupValues?.get(1)
-                                if (rtpMatch != null) {
-                                    val rtpUrl = if (rtpMatch.startsWith("http")) rtpMatch else "https://www.filmi2k.com/${rtpMatch.trimStart('/')}"
-                                    val rtpPage = app.get(rtpUrl, headers = mapOf("Referer" to matchLink, "User-Agent" to "Mozilla/5.0")).text
-                                    val unpacked = getPacked(rtpPage) ?: rtpPage
-                                    val m3u8Match = Regex("""https?://[^\s"'<>]+\.m3u8[^\s"'<>]*""").find(unpacked)
-                                    if (m3u8Match != null) {
-                                        callback.invoke(
-                                            newExtractorLink(
-                                                source = name,
-                                                name   = "$name - 1080p Full HD (Filmi2k)",
-                                                url    = m3u8Match.value,
-                                                type   = ExtractorLinkType.M3U8
-                                            ) {
-                                                this.referer = rtpUrl
-                                                this.quality = Qualities.P1080.value
-                                            }
-                                        )
-                                        foundAny = true
-                                        break
-                                    }
-                                }
-                            }
-                        }
-                    } catch (e: Exception) { }
-                }
-
-                // 3. SERVER 2: Filmifen (БГ Аудио / БГ Превод)
-                // Find player dictionary in page scripts: {trailer:"...", vdn:"...", okr:"...", fmo:"...", voe:"..."}
-                val playerDictRegex = Regex("""(?s)(?:const|var|let)?\s*[a-zA-Z0-9_]*\s*=\s*\{([^}]+(?:trailer|vdn|okr|voe|fmo)[^}]+)\}""")
-                val dictMatch = playerDictRegex.find(html)
-
-                if (dictMatch != null) {
-                    val block = dictMatch.groupValues[1]
-                    val urlPattern = Regex("""([a-zA-Z0-9_]+)\s*:\s*["']([^"']+)["']""")
-                    val matches = urlPattern.findAll(block)
-
-                    for (m in matches) {
-                        val key = m.groupValues[1]
-                        var targetUrl = m.groupValues[2].trim()
-
-                        if (targetUrl.isEmpty() || key == "trailer") continue
-                        if (targetUrl.startsWith("//")) targetUrl = "https:$targetUrl"
-
-                        // Load via appropriate extractor
-                        if (targetUrl.contains("ok.ru")) {
-                            loadExtractor(targetUrl.replace("videoembed", "video"), mainUrl, subtitleCallback, callback)
-                            foundAny = true
-                        } else if (targetUrl.contains("voe.sx") || targetUrl.contains("voe.")) {
-                            loadExtractor(targetUrl, mainUrl, subtitleCallback, callback)
-                            foundAny = true
-                        } else if (targetUrl.contains("filemoon") || targetUrl.contains("bysesukior.com")) {
-                            loadExtractor(targetUrl, mainUrl, subtitleCallback, callback)
-                            foundAny = true
-                        } else if (targetUrl.contains("vidon.to")) {
-                            // Extract from Vidon embed
-                            try {
-                                val vidonHtml = app.get(targetUrl, headers = mapOf("Referer" to "$mainUrl/")).text
-                                val m3u8Match = Regex("""https?://[^\s"'<>]+\.m3u8[^\s"'<>]*""").find(vidonHtml)
-                                if (m3u8Match != null) {
-                                    callback.invoke(
-                                        newExtractorLink(
-                                            source = name,
-                                            name = "$name - Vidon (HD)",
-                                            url = m3u8Match.value,
-                                            type = ExtractorLinkType.M3U8
-                                        ) {
-                                            this.referer = targetUrl
-                                            this.quality = Qualities.P1080.value
-                                        }
-                                    )
-                                    foundAny = true
-                                }
-                            } catch (e: Exception) { }
-                        } else {
-                            loadExtractor(targetUrl, mainUrl, subtitleCallback, callback)
-                            foundAny = true
-                        }
+        try {
+            val defaultHtml = app.get(data, headers = liveHeaders).text
+            val defaultStream = m3u8Regex.find(defaultHtml)?.groupValues?.get(1)
+            if (!defaultStream.isNullOrEmpty()) {
+                callback.invoke(
+                    newExtractorLink(
+                        source  = name,
+                        name    = "$name - Основен Сървър (HD)",
+                        url     = defaultStream,
+                        type    = ExtractorLinkType.M3U8
+                    ) {
+                        this.referer = "$seirsandukUrl/"
+                        this.headers = streamHeaders
+                        this.quality = Qualities.P1080.value
                     }
-                }
+                )
+                foundAny = true
+            }
 
-                // 4. SERVER 3: Global HD Embed Fallback
-                if (!imdbId.isNullOrBlank()) {
-                    try {
-                        val embedUrl = if (season != null && episode != null) {
-                            "https://www.2embed.cc/embedtv/$imdbId&s=$season&e=$episode"
-                        } else {
-                            "https://www.2embed.cc/embed/$imdbId"
-                        }
-                        val embedHtml = app.get(embedUrl, headers = mapOf("User-Agent" to "Mozilla/5.0", "Referer" to "https://www.2embed.cc/")).text
-                        val streamSrc = Regex("""go\(['"]([^'"]+)['"]\)""").find(embedHtml)?.groupValues?.get(1)
-                            ?: Regex("""data-src=['"]([^'"]+)['"]""").find(embedHtml)?.groupValues?.get(1)
-                        if (streamSrc != null) {
-                            loadExtractor(streamSrc, embedUrl, subtitleCallback, callback)
-                            foundAny = true
-                        }
-                    } catch (e: Exception) { }
-                }
-
-                // 5. Fallback: check all iframes / direct links
-                doc.select("iframe[src]").forEach { iframe ->
-                    var src = iframe.attr("src").trim()
-                    if (src.startsWith("//")) src = "https:$src"
-                    if (src.isNotEmpty() && !src.contains("youtube") && !src.contains("google")) {
-                        loadExtractor(src, mainUrl, subtitleCallback, callback)
+            val channelId = Uri.parse(data).getQueryParameter("id")
+            if (!channelId.isNullOrEmpty()) {
+                // Player 2
+                try {
+                    val p2Html = app.get("$seirsandukUrl/?player=12&id=$channelId&pass=", headers = liveHeaders).text
+                    val p2Stream = m3u8Regex.find(p2Html)?.groupValues?.get(1)
+                    if (!p2Stream.isNullOrEmpty() && p2Stream != defaultStream) {
+                        callback.invoke(
+                            newExtractorLink(
+                                source  = name,
+                                name    = "$name - Резервен Сървър 1",
+                                url     = p2Stream,
+                                type    = ExtractorLinkType.M3U8
+                            ) {
+                                this.referer = "$seirsandukUrl/"
+                                this.headers = streamHeaders
+                                this.quality = Qualities.P1080.value
+                            }
+                        )
                         foundAny = true
                     }
+                } catch (e: Exception) { }
+
+                // Player 3
+                try {
+                    val p3Html = app.get("$seirsandukUrl/?player=13&id=$channelId&pass=", headers = liveHeaders).text
+                    val p3Stream = m3u8Regex.find(p3Html)?.groupValues?.get(1)
+                    if (!p3Stream.isNullOrEmpty() && p3Stream != defaultStream) {
+                        callback.invoke(
+                            newExtractorLink(
+                                source  = name,
+                                name    = "$name - Резервен Сървър 2",
+                                url     = p3Stream,
+                                type    = ExtractorLinkType.M3U8
+                            ) {
+                                this.referer = "$seirsandukUrl/"
+                                this.headers = streamHeaders
+                                this.quality = Qualities.P1080.value
+                            }
+                        )
+                        foundAny = true
+                    }
+                } catch (e: Exception) { }
+            }
+        } catch (e: Exception) { }
+
+        return foundAny
+    }
+
+    /**
+     * HD stream loading for Cinemeta content.
+     * Data format: imdbId|tmdbId|type[|season|episode]
+     *
+     * Multi-server approach:
+     * 1. VidSrc.me - Primary HD server (supports IMDb IDs directly)
+     * 2. 2Embed.cc - Secondary HD server (3 inner servers: vidsrc.buzz, videm.xyz, streamsrcs)
+     * 3. VidSrc.net - Tertiary HD server
+     * 4. Auto Bulgarian subtitles from Subsunacs/Subs.sab/SubsLand
+     */
+    private suspend fun loadHDLinks(
+        data: String,
+        subtitleCallback: (SubtitleFile) -> Unit,
+        callback: (ExtractorLink) -> Unit
+    ): Boolean {
+        var foundAny = false
+        val parts = data.split("|")
+        val imdbId = parts.getOrElse(0) { "" }
+        val tmdbId = parts.getOrElse(1) { "0" }
+        val type = parts.getOrElse(2) { "movie" }
+        val season = parts.getOrElse(3) { "" }.toIntOrNull()
+        val episode = parts.getOrElse(4) { "" }.toIntOrNull()
+
+        if (imdbId.isBlank()) return false
+
+        // Always fetch Bulgarian subtitles
+        fetchBulgarianSubtitles(imdbId, season, episode, subtitleCallback)
+
+        // ========== SERVER 1: VidSrc.me (Primary HD) ==========
+        try {
+            val vidsrcUrl = if (type == "series" && season != null && episode != null) {
+                "https://vidsrc.me/embed/tv?imdb=$imdbId&season=$season&episode=$episode"
+            } else {
+                "https://vidsrc.me/embed/movie?imdb=$imdbId"
+            }
+            val vidsrcHtml = app.get(vidsrcUrl, headers = mapOf(
+                "User-Agent" to "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+                "Referer" to "https://vidsrc.me/"
+            )).text
+
+            // VidSrc.me uses an inner iframe with the actual player
+            val iframeSrc = Regex("""id=['"]?player_iframe['"]?\s+src=['"]([^'"]+)['"]""").find(vidsrcHtml)?.groupValues?.get(1)
+                ?: Regex("""<iframe[^>]+src=['"]([^'"]+)['"]""").find(vidsrcHtml)?.groupValues?.get(1)
+
+            if (iframeSrc != null) {
+                val fullIframeUrl = when {
+                    iframeSrc.startsWith("http") -> iframeSrc
+                    iframeSrc.startsWith("//") -> "https:$iframeSrc"
+                    else -> "https://vidsrc.me$iframeSrc"
+                }
+                loadExtractor(fullIframeUrl, "https://vidsrc.me/", subtitleCallback, callback)
+                foundAny = true
+            }
+        } catch (e: Exception) { }
+
+        // ========== SERVER 2: 2Embed.cc (3 sub-servers) ==========
+        try {
+            val embedUrl = if (type == "series" && season != null && episode != null) {
+                "https://www.2embed.cc/embedtv/$imdbId&s=$season&e=$episode"
+            } else {
+                "https://www.2embed.cc/embed/$imdbId"
+            }
+            val embedHtml = app.get(embedUrl, headers = mapOf(
+                "User-Agent" to "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+                "Referer" to "https://www.2embed.cc/"
+            )).text
+
+            // Extract go() calls - these are the actual server URLs
+            val goUrls = Regex("""go\(['"]([^'"]+)['"]\)""").findAll(embedHtml).map { it.groupValues[1] }.toList()
+            // Also get data-src
+            val dataSrcs = Regex("""data-src=['"]([^'"]+)['"]""").findAll(embedHtml).map { it.groupValues[1] }.toList()
+
+            val allServerUrls = (goUrls + dataSrcs).distinct()
+
+            for (serverUrl in allServerUrls) {
+                try {
+                    val fullUrl = when {
+                        serverUrl.startsWith("http") -> serverUrl
+                        serverUrl.startsWith("//") -> "https:$serverUrl"
+                        else -> "https://www.2embed.cc$serverUrl"
+                    }
+                    loadExtractor(fullUrl, "https://www.2embed.cc/", subtitleCallback, callback)
+                    foundAny = true
+                } catch (e: Exception) { }
+            }
+        } catch (e: Exception) { }
+
+        // ========== SERVER 3: VidSrc.net (Fallback HD) ==========
+        try {
+            val vidsrcNetUrl = if (type == "series" && season != null && episode != null) {
+                "https://vidsrc.net/embed/tv/$imdbId/$season/$episode"
+            } else {
+                "https://vidsrc.net/embed/movie/$imdbId"
+            }
+            val vidsrcNetHtml = app.get(vidsrcNetUrl, headers = commonHeaders).text
+
+            // Look for iframe or redirect
+            val iframeSrc = Regex("""<iframe[^>]+src=['"]([^'"]+)['"]""").find(vidsrcNetHtml)?.groupValues?.get(1)
+            if (iframeSrc != null) {
+                val fullUrl = when {
+                    iframeSrc.startsWith("http") -> iframeSrc
+                    iframeSrc.startsWith("//") -> "https:$iframeSrc"
+                    else -> "https://vidsrc.net$iframeSrc"
+                }
+                loadExtractor(fullUrl, "https://vidsrc.net/", subtitleCallback, callback)
+                foundAny = true
+            }
+
+            // Also check for direct m3u8/mp4 links
+            val directLinks = Regex("""(?:src|file|source)\s*[:=]\s*['"]?(https?://[^\s'"<>]+\.(?:m3u8|mp4)[^\s'"<>]*)""").findAll(vidsrcNetHtml)
+            for (link in directLinks) {
+                callback.invoke(
+                    newExtractorLink(
+                        source = name,
+                        name = "$name - VidSrc HD",
+                        url = link.groupValues[1],
+                        type = if (link.groupValues[1].contains(".m3u8")) ExtractorLinkType.M3U8 else ExtractorLinkType.VIDEO
+                    ) {
+                        this.referer = "https://vidsrc.net/"
+                        this.quality = Qualities.P1080.value
+                    }
+                )
+                foundAny = true
+            }
+        } catch (e: Exception) { }
+
+        // ========== SERVER 4: VidSrc.sh (Extra HD) ==========
+        if (tmdbId != "0" && tmdbId.isNotBlank()) {
+            try {
+                val vidsrcShUrl = if (type == "series" && season != null && episode != null) {
+                    "https://vidsrc.sh/embed/tv/$tmdbId/$season/$episode"
+                } else {
+                    "https://vidsrc.sh/embed/movie/$tmdbId"
+                }
+                val vidsrcShHtml = app.get(vidsrcShUrl, headers = mapOf(
+                    "User-Agent" to "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+                    "Referer" to "https://vidsrc.sh/"
+                )).text
+
+                val iframeSrc = Regex("""<iframe[^>]+src=['"]([^'"]+)['"]""").find(vidsrcShHtml)?.groupValues?.get(1)
+                    ?: Regex("""id=['"]?player_iframe['"]?\s+src=['"]([^'"]+)['"]""").find(vidsrcShHtml)?.groupValues?.get(1)
+
+                if (iframeSrc != null) {
+                    val fullUrl = when {
+                        iframeSrc.startsWith("http") -> iframeSrc
+                        iframeSrc.startsWith("//") -> "https:$iframeSrc"
+                        else -> "https://vidsrc.sh$iframeSrc"
+                    }
+                    loadExtractor(fullUrl, "https://vidsrc.sh/", subtitleCallback, callback)
+                    foundAny = true
                 }
             } catch (e: Exception) { }
         }
+
+        // ========== SERVER 5: SmashyStream (Bonus HD) ==========
+        try {
+            val smashyUrl = if (type == "series" && season != null && episode != null) {
+                "https://embed.smashystream.com/playere.php?imdb=$imdbId&season=$season&episode=$episode"
+            } else {
+                "https://embed.smashystream.com/playere.php?imdb=$imdbId"
+            }
+            val smashyHtml = app.get(smashyUrl, headers = mapOf(
+                "User-Agent" to "Mozilla/5.0",
+                "Referer" to "https://embed.smashystream.com/"
+            )).text
+
+            // SmashyStream often has direct file URLs or nested iframes
+            val m3u8Links = Regex("""https?://[^\s"'<>]+\.m3u8[^\s"'<>]*""").findAll(smashyHtml)
+            for (link in m3u8Links) {
+                callback.invoke(
+                    newExtractorLink(
+                        source = name,
+                        name = "$name - SmashyStream HD",
+                        url = link.value,
+                        type = ExtractorLinkType.M3U8
+                    ) {
+                        this.referer = smashyUrl
+                        this.quality = Qualities.P1080.value
+                    }
+                )
+                foundAny = true
+            }
+
+            // Also try iframe extraction
+            val iframeSrcs = Regex("""<iframe[^>]+src=['"]([^'"]+)['"]""").findAll(smashyHtml)
+            for (iframe in iframeSrcs) {
+                val src = iframe.groupValues[1]
+                if (src.isNotBlank() && !src.contains("youtube") && !src.contains("google")) {
+                    val fullSrc = if (src.startsWith("//")) "https:$src" else src
+                    loadExtractor(fullSrc, smashyUrl, subtitleCallback, callback)
+                    foundAny = true
+                }
+            }
+        } catch (e: Exception) { }
+
+        return foundAny
+    }
+
+    /**
+     * Load streams from Filmifen (BG Audio content with optional HD fallback).
+     * Data format: filmifen|url|imdbId
+     */
+    private suspend fun loadFilmifenLinks(
+        data: String,
+        subtitleCallback: (SubtitleFile) -> Unit,
+        callback: (ExtractorLink) -> Unit
+    ): Boolean {
+        var foundAny = false
+        val parts = data.split("|")
+        val filmifenUrl2 = parts.getOrElse(1) { "" }
+        val imdbId = parts.getOrElse(2) { "" }
+
+        if (filmifenUrl2.isBlank()) return false
+
+        // If we have IMDb ID, also try HD sources + subtitles
+        if (imdbId.isNotBlank()) {
+            fetchBulgarianSubtitles(imdbId, null, null, subtitleCallback)
+
+            // Try to get TMDB ID from Cinemeta for extra HD sources
+            var tmdbId = "0"
+            try {
+                val metaResp = app.get("$mainUrl/meta/movie/$imdbId.json", headers = commonHeaders).text
+                val metaJson = JSONObject(metaResp)
+                tmdbId = metaJson.getJSONObject("meta").optInt("moviedb_id", 0).toString()
+            } catch (e: Exception) { }
+
+            // Load HD sources as well
+            loadHDLinks("$imdbId|$tmdbId|movie", subtitleCallback, callback)
+        }
+
+        // Load Filmifen's own BG Audio sources
+        try {
+            val html = app.get(filmifenUrl2, headers = movieHeaders).text
+            val doc = Jsoup.parse(html)
+
+            // Find player dictionary in page scripts
+            val playerDictRegex = Regex("""(?s)(?:const|var|let)?\s*[a-zA-Z0-9_]*\s*=\s*\{([^}]+(?:trailer|vdn|okr|voe|fmo)[^}]+)\}""")
+            val dictMatch = playerDictRegex.find(html)
+
+            if (dictMatch != null) {
+                val block = dictMatch.groupValues[1]
+                val urlPattern = Regex("""([a-zA-Z0-9_]+)\s*:\s*["']([^"']+)["']""")
+                val matches = urlPattern.findAll(block)
+
+                for (m in matches) {
+                    val key = m.groupValues[1]
+                    var targetUrl = m.groupValues[2].trim()
+
+                    if (targetUrl.isEmpty() || key == "trailer") continue
+                    if (targetUrl.startsWith("//")) targetUrl = "https:$targetUrl"
+
+                    // Load via appropriate extractor
+                    if (targetUrl.contains("ok.ru")) {
+                        loadExtractor(targetUrl.replace("videoembed", "video"), filmifenUrl, subtitleCallback, callback)
+                        foundAny = true
+                    } else if (targetUrl.contains("voe.sx") || targetUrl.contains("voe.")) {
+                        loadExtractor(targetUrl, filmifenUrl, subtitleCallback, callback)
+                        foundAny = true
+                    } else if (targetUrl.contains("filemoon") || targetUrl.contains("bysesukior.com")) {
+                        loadExtractor(targetUrl, filmifenUrl, subtitleCallback, callback)
+                        foundAny = true
+                    } else if (targetUrl.contains("vidon.to")) {
+                        try {
+                            val vidonHtml = app.get(targetUrl, headers = mapOf("Referer" to "$filmifenUrl/")).text
+                            val m3u8Match = Regex("""https?://[^\s"'<>]+\.m3u8[^\s"'<>]*""").find(vidonHtml)
+                            if (m3u8Match != null) {
+                                callback.invoke(
+                                    newExtractorLink(
+                                        source = name,
+                                        name = "$name - BG Аудио (Vidon)",
+                                        url = m3u8Match.value,
+                                        type = ExtractorLinkType.M3U8
+                                    ) {
+                                        this.referer = targetUrl
+                                        this.quality = Qualities.P720.value
+                                    }
+                                )
+                                foundAny = true
+                            }
+                        } catch (e: Exception) { }
+                    } else {
+                        loadExtractor(targetUrl, filmifenUrl, subtitleCallback, callback)
+                        foundAny = true
+                    }
+                }
+            }
+
+            // Fallback: check all iframes
+            doc.select("iframe[src]").forEach { iframe ->
+                var src = iframe.attr("src").trim()
+                if (src.startsWith("//")) src = "https:$src"
+                if (src.isNotEmpty() && !src.contains("youtube") && !src.contains("google")) {
+                    loadExtractor(src, filmifenUrl, subtitleCallback, callback)
+                    foundAny = true
+                }
+            }
+        } catch (e: Exception) { }
 
         return foundAny
     }
