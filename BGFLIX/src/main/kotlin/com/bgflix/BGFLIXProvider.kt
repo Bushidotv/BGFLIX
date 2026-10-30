@@ -6,6 +6,8 @@ import com.lagradost.cloudstream3.utils.*
 import org.jsoup.Jsoup
 import org.jsoup.nodes.Element
 import java.net.URLEncoder
+import org.json.JSONObject
+import org.json.JSONArray
 
 class BGFLIXProvider : MainAPI() {
     override var mainUrl = "https://filmifen.com"
@@ -401,9 +403,12 @@ class BGFLIXProvider : MainAPI() {
                     val epHref = epLink.attr("href").trim()
                     if (epHref.isNotEmpty() && epTitle.isNotEmpty() && epHref != url) {
                         val fullEpHref = if (epHref.startsWith("http")) epHref else "$mainUrl/${epHref.trimStart('/')}"
+                        val epMatch = Regex("""season-(\d+)-episode-(\d+)""").find(fullEpHref)
                         episodes.add(
                             newEpisode(fullEpHref) {
                                 this.name = epTitle
+                                this.season = epMatch?.groupValues?.get(1)?.toIntOrNull()
+                                this.episode = epMatch?.groupValues?.get(2)?.toIntOrNull()
                             }
                         )
                     }
@@ -438,6 +443,48 @@ class BGFLIXProvider : MainAPI() {
     // ==========================================
     // 4. LOAD LINKS (LIVE HLS OR MOVIE SERVERS)
     // ==========================================
+
+    /**
+     * Fetches authentic Bulgarian subtitles from Subsunacs, Subs.sab.bz, and SubsLand.
+     */
+    private suspend fun fetchBulgarianSubtitles(
+        imdbId: String,
+        season: Int? = null,
+        episode: Int? = null,
+        subtitleCallback: (SubtitleFile) -> Unit
+    ) {
+        try {
+            val subUrl = if (season != null && episode != null) {
+                "https://bulgarian-subs-addon.onrender.com/subtitles/series/$imdbId:$season:$episode.json"
+            } else {
+                "https://bulgarian-subs-addon.onrender.com/subtitles/movie/$imdbId.json"
+            }
+            val subResp = app.get(subUrl, timeout = 12).text
+            val json = JSONObject(subResp)
+            val subArr = json.optJSONArray("subtitles") ?: return
+            for (i in 0 until subArr.length()) {
+                val item = subArr.optJSONObject(i) ?: continue
+                val rawSubUrl = item.optString("url")
+                val subName = item.optString("name", "Български")
+                val subId = item.optString("id", "")
+                val srcTag = when {
+                    subId.contains("sab", ignoreCase = true) -> "Subs.sab"
+                    subId.contains("unacs", ignoreCase = true) -> "Subsunacs"
+                    subId.contains("land", ignoreCase = true) -> "SubsLand"
+                    else -> "BG"
+                }
+                if (rawSubUrl.isNotBlank()) {
+                    subtitleCallback.invoke(
+                        SubtitleFile(
+                            lang = "Български ($srcTag - $subName)",
+                            url  = rawSubUrl
+                        )
+                    )
+                }
+            }
+        } catch (e: Exception) { }
+    }
+
     override suspend fun loadLinks(
         data: String,
         isCasting: Boolean,
@@ -521,11 +568,74 @@ class BGFLIXProvider : MainAPI() {
                 }
             } catch (e: Exception) { }
         } else {
-            // Movie / Series Stream from Filmifen
+            // Movie / Series Streams (Multi-Server: Filmi2k 1080p + Filmifen BG Dub + Global HD + Auto BG Subs)
             try {
                 val html = app.get(data, headers = movieHeaders).text
+                val doc = Jsoup.parse(html)
 
-                // 1. Find player dictionary in page scripts: {trailer:"...", vdn:"...", okr:"...", fmo:"...", voe:"..."}
+                // 1. Extract IMDb ID & Episode numbers for Auto Bulgarian Subtitles
+                val imdbId = doc.selectFirst("a[href*='imdb.com/title/']")?.attr("href")?.let {
+                    Regex("""tt\d+""").find(it)?.value
+                }
+
+                val isSeries = data.contains("/seriali/")
+                val epMatch = Regex("""season-(\d+)-episode-(\d+)""").find(data)
+                val season = epMatch?.groupValues?.get(1)?.toIntOrNull()
+                val episode = epMatch?.groupValues?.get(2)?.toIntOrNull()
+
+                // Trigger automatic Bulgarian subtitles from Subsunacs / Subs.sab / Subsland
+                if (!imdbId.isNullOrBlank()) {
+                    fetchBulgarianSubtitles(imdbId, season, episode, subtitleCallback)
+                }
+
+                val title = doc.selectFirst("h1.pmovie__title")?.text()?.trim()
+                    ?: doc.selectFirst("h1")?.text()?.trim()
+                    ?: ""
+                val cleanTitle = title.replace(Regex("""\(\d{4}\).*"""), "").replace(Regex("""[^\p{L}\p{N}\s]"""), "").trim()
+
+                // 2. SERVER 1: Filmi2k Native 1080p Full HD (WEB-DL with high-bitrate stream)
+                if (!isSeries && cleanTitle.isNotBlank()) {
+                    try {
+                        val searchTerms = listOfNotNull(
+                            cleanTitle,
+                            doc.selectFirst("a.pmovie-info__imdb-link")?.attr("title")?.substringAfter(" - ")?.trim()
+                        ).distinct()
+
+                        for (term in searchTerms) {
+                            val searchUrl = "https://www.filmi2k.com/?s=" + URLEncoder.encode(term, "UTF-8")
+                            val searchHtml = app.get(searchUrl, headers = mapOf("User-Agent" to "Mozilla/5.0")).text
+                            val matchLink = Regex("""href="(https://www\.filmi2k\.com/[^"/]+-[0-9]{4}/)"""").find(searchHtml)?.groupValues?.get(1)
+                            if (matchLink != null) {
+                                val filmiHtml = app.get(matchLink, headers = mapOf("User-Agent" to "Mozilla/5.0")).text
+                                val rtpMatch = Regex("""src="(/?[^"]*rtp=[^"]*)"""").find(filmiHtml)?.groupValues?.get(1)
+                                if (rtpMatch != null) {
+                                    val rtpUrl = if (rtpMatch.startsWith("http")) rtpMatch else "https://www.filmi2k.com/${rtpMatch.trimStart('/')}"
+                                    val rtpPage = app.get(rtpUrl, headers = mapOf("Referer" to matchLink, "User-Agent" to "Mozilla/5.0")).text
+                                    val unpacked = getPacked(rtpPage) ?: rtpPage
+                                    val m3u8Match = Regex("""https?://[^\s"'<>]+\.m3u8[^\s"'<>]*""").find(unpacked)
+                                    if (m3u8Match != null) {
+                                        callback.invoke(
+                                            newExtractorLink(
+                                                source = name,
+                                                name   = "$name - 1080p Full HD (Filmi2k)",
+                                                url    = m3u8Match.value,
+                                                type   = ExtractorLinkType.M3U8
+                                            ) {
+                                                this.referer = rtpUrl
+                                                this.quality = Qualities.P1080.value
+                                            }
+                                        )
+                                        foundAny = true
+                                        break
+                                    }
+                                }
+                            }
+                        }
+                    } catch (e: Exception) { }
+                }
+
+                // 3. SERVER 2: Filmifen (БГ Аудио / БГ Превод)
+                // Find player dictionary in page scripts: {trailer:"...", vdn:"...", okr:"...", fmo:"...", voe:"..."}
                 val playerDictRegex = Regex("""(?s)(?:const|var|let)?\s*[a-zA-Z0-9_]*\s*=\s*\{([^}]+(?:trailer|vdn|okr|voe|fmo)[^}]+)\}""")
                 val dictMatch = playerDictRegex.find(html)
 
@@ -578,8 +688,25 @@ class BGFLIXProvider : MainAPI() {
                     }
                 }
 
-                // 2. Fallback: check all iframes / direct links
-                val doc = Jsoup.parse(html)
+                // 4. SERVER 3: Global HD Embed Fallback
+                if (!imdbId.isNullOrBlank()) {
+                    try {
+                        val embedUrl = if (season != null && episode != null) {
+                            "https://www.2embed.cc/embedtv/$imdbId&s=$season&e=$episode"
+                        } else {
+                            "https://www.2embed.cc/embed/$imdbId"
+                        }
+                        val embedHtml = app.get(embedUrl, headers = mapOf("User-Agent" to "Mozilla/5.0", "Referer" to "https://www.2embed.cc/")).text
+                        val streamSrc = Regex("""go\(['"]([^'"]+)['"]\)""").find(embedHtml)?.groupValues?.get(1)
+                            ?: Regex("""data-src=['"]([^'"]+)['"]""").find(embedHtml)?.groupValues?.get(1)
+                        if (streamSrc != null) {
+                            loadExtractor(streamSrc, embedUrl, subtitleCallback, callback)
+                            foundAny = true
+                        }
+                    } catch (e: Exception) { }
+                }
+
+                // 5. Fallback: check all iframes / direct links
                 doc.select("iframe[src]").forEach { iframe ->
                     var src = iframe.attr("src").trim()
                     if (src.startsWith("//")) src = "https:$src"
