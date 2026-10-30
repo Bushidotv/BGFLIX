@@ -65,45 +65,32 @@ class BGFLIXProvider : MainAPI() {
     private fun getHighResLogo(title: String, defaultImg: String): String {
         val lower = title.lowercase()
         val logoFile = when {
-            // 1. BNT family
             lower.contains("bnt 1") -> "bnt1.png"
             lower.contains("bnt 2") -> "bnt2.png"
             lower.contains("bnt 3") -> "bnt3.png"
             lower.contains("bnt 4") -> "bnt4.png"
-
-            // 2. bTV family
             lower.contains("btv action") -> "btv_action.png"
             lower.contains("btv cinema") -> "btv_cinema.png"
             lower.contains("btv comedy") -> "btv_comedy.png"
             lower.contains("btv story") -> "btv_story.png"
             lower.contains("btv") -> "btvhd.png"
-
-            // 3. Nova family
             lower.contains("nova news") -> "nova_news.png"
             lower.contains("nova sport") -> "nova_sport.png"
             lower.contains("kino nova") -> "kino_nova.png"
             lower.contains("nova") -> "nova.png"
-
-            // 4. Diema family
             lower.contains("diema sport 3") -> "diema_sport_3.png"
             lower.contains("diema sport 2") -> "diema_sport_2.png"
             lower.contains("diema sport") -> "diema_sport.png"
             lower.contains("diema family") -> "diema_family.png"
             lower.contains("diema") -> "diema.png"
-
-            // 5. Max Sport family
             lower.contains("max sport 1") -> "MAX_SPORT1_HD.png"
             lower.contains("max sport 2") -> "MAX_SPORT2_HD.png"
             lower.contains("max sport 3") -> "MAX_SPORT3_HD.png"
             lower.contains("max sport 4") -> "MAX_SPORT4_HD.png"
             lower.contains("max one") -> "MAX_ONE_HD.png"
-
-            // 6. Sports international
             lower.contains("eurosport 1") -> "eurosport1.png"
             lower.contains("eurosport 2") -> "eurosport2.png"
             lower.contains("ring") -> "RING_BG_HD.png"
-
-            // 7. Star & AXN & Epic Drama
             lower.contains("star crime") -> "STAR_CRIME_HD.png"
             lower.contains("star life") -> "STAR_LIFE.png"
             lower.contains("star channel") || lower.contains("star") -> "star_channel.png"
@@ -111,8 +98,6 @@ class BGFLIXProvider : MainAPI() {
             lower.contains("axn white") -> "axn_white.png"
             lower.contains("axn") -> "axn.png"
             lower.contains("epic drama") -> "EPICDRAMAHD.png"
-
-            // 8. Documentary & Lifestyle
             lower.contains("nat geo wild") -> "nat_geo_wild.png"
             lower.contains("nat geo") -> "nat_geo.png"
             lower.contains("discovery") -> "discovery.png"
@@ -123,36 +108,26 @@ class BGFLIXProvider : MainAPI() {
             lower.contains("24 kitchen") || lower.contains("food network") -> "food_network.png"
             lower.contains("tlc") -> "tlc.png"
             lower.contains("code fashion") -> "codefashiontv.png"
-
-            // 9. Kids
             lower.contains("disney") -> "disney_channel.png"
             lower.contains("cartoon") -> "cartoon_network.png"
             lower.contains("nick jr") -> "nick_jr.png"
             lower.contains("nicktoons") -> "nicktoons.png"
             lower.contains("nickelodeon") -> "nickelodeon.png"
             lower.contains("e kids") || lower.contains("ekids") -> "EKIDS.png"
-
-            // 10. News & Business
             lower.contains("bloomberg") -> "bloomberg.png"
             lower.contains("euronews") -> "euronews.png"
-
-            // 11. Bulgarian National & Regional
             lower.contains("bulgaria on air") -> "bulgaria_on_air.png"
             lower.contains("kanal 3") -> "kanal3.png"
             lower.contains("78 tv") || lower.contains("7/8 tv") -> "78tv.png"
             lower.contains("skat") -> "skat.png"
             lower.contains("vtk") -> "vtk.png"
             lower.contains("evrokom") -> "evrokom.png"
-
-            // 12. Music & Folk
             lower.contains("city") -> "citytv.png"
             lower.contains("the voice") -> "THE_VOICE.png"
             lower.contains("planeta") -> "PLANETA_HD.png"
-            lower.contains("folklor") -> "RODINA_TV.png"
+            lower.contains("folklor") || lower.contains("rodina") -> "RODINA_TV.png"
             lower.contains("tiankov") -> "TIANKOV_TV.png"
-            lower.contains("rodina") -> "RODINA_TV.png"
             lower.contains("dstv") -> "dstv.png"
-
             else -> null
         }
 
@@ -172,10 +147,6 @@ class BGFLIXProvider : MainAPI() {
         }
     }
 
-    /**
-     * Extracts poster image handling lazy-loading (data-src, data-srcset, srcset, src)
-     * avoiding transparent 1x1 placeholder base64 gifs.
-     */
     private fun extractPoster(element: Element): String? {
         val imgEl = element.selectFirst("img") ?: return null
 
@@ -208,7 +179,7 @@ class BGFLIXProvider : MainAPI() {
     }
 
     // ==========================================
-    // 1. MAIN PAGE (LIVE CHANNELS + HD MOVIES FROM CINEMETA + BG AUDIO FROM FILMIFEN)
+    // 1. MAIN PAGE (LIVE CHANNELS + HD MOVIES + BG AUDIO)
     // ==========================================
     override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse {
         if (request.data.startsWith("live_")) {
@@ -222,9 +193,6 @@ class BGFLIXProvider : MainAPI() {
         return newHomePageResponse(HomePageList(request.name, emptyList()), hasNext = false)
     }
 
-    /**
-     * Live TV channels from Seirsanduk - unchanged.
-     */
     private suspend fun getLiveChannelsPage(request: MainPageRequest): HomePageResponse {
         val channelList = mutableListOf<SearchResponse>()
         val htmlResponse = app.get("$seirsandukUrl/", headers = liveHeaders).text
@@ -271,9 +239,6 @@ class BGFLIXProvider : MainAPI() {
         )
     }
 
-    /**
-     * HD Movies & Series from Cinemeta (Stremio catalog API).
-     */
     private suspend fun getCinemetaPage(page: Int, request: MainPageRequest): HomePageResponse {
         val parts = request.data.removePrefix("cinemeta_").split("_", limit = 2)
         val type = parts.getOrElse(0) { "movie" }
@@ -311,12 +276,13 @@ class BGFLIXProvider : MainAPI() {
 
                 if (name.isEmpty() || imdbId.isEmpty()) continue
 
-                val dataUrl = "bgflix://cinemeta/$type/$imdbId"
+                // Use valid HTTPS URL directly so CloudStream's fixUrl doesn't corrupt it
+                val detailUrl = "$mainUrl/meta/$type/$imdbId.json"
                 val displayName = if (imdbRating.isNotBlank()) "$name ⭐$imdbRating" else name
 
                 if (type == "series") {
                     items.add(
-                        newTvSeriesSearchResponse(displayName, dataUrl, TvType.TvSeries) {
+                        newTvSeriesSearchResponse(displayName, detailUrl, TvType.TvSeries) {
                             this.posterUrl = poster
                             this.year = year
                             this.quality = SearchQuality.HD
@@ -324,7 +290,7 @@ class BGFLIXProvider : MainAPI() {
                     )
                 } else {
                     items.add(
-                        newMovieSearchResponse(displayName, dataUrl, TvType.Movie) {
+                        newMovieSearchResponse(displayName, detailUrl, TvType.Movie) {
                             this.posterUrl = poster
                             this.year = year
                             this.quality = SearchQuality.HD
@@ -340,9 +306,6 @@ class BGFLIXProvider : MainAPI() {
         )
     }
 
-    /**
-     * Bulgarian Audio movies from Filmifen.
-     */
     private suspend fun getFilmifenBGPage(page: Int, request: MainPageRequest): HomePageResponse {
         val url = if (page <= 1) {
             "$filmifenUrl/filmi-bg-audio/"
@@ -395,13 +358,13 @@ class BGFLIXProvider : MainAPI() {
     }
 
     // ==========================================
-    // 2. SEARCH (LIVE TV + CINEMETA HD + FILMIFEN BG)
+    // 2. SEARCH
     // ==========================================
     override suspend fun search(query: String): List<SearchResponse> {
         val results = mutableListOf<SearchResponse>()
         val cleanQuery = query.trim()
 
-        // 1. Search Live TV channels
+        // 1. Search Live TV
         try {
             val liveHtml = app.get("$seirsandukUrl/", headers = liveHeaders).text
             val liveDoc = Jsoup.parse(liveHtml)
@@ -426,7 +389,7 @@ class BGFLIXProvider : MainAPI() {
             }
         } catch (e: Exception) { }
 
-        // 2. Search Cinemeta for HD Movies
+        // 2. Search Cinemeta Movies
         try {
             val encoded = URLEncoder.encode(cleanQuery, "UTF-8")
             val searchUrl = "$mainUrl/catalog/movie/top/search=$encoded.json"
@@ -445,11 +408,11 @@ class BGFLIXProvider : MainAPI() {
 
                 if (name.isEmpty() || imdbId.isEmpty()) continue
 
-                val dataUrl = "bgflix://cinemeta/movie/$imdbId"
+                val detailUrl = "$mainUrl/meta/movie/$imdbId.json"
                 val displayName = if (imdbRating.isNotBlank()) "$name ⭐$imdbRating" else name
 
                 results.add(
-                    newMovieSearchResponse(displayName, dataUrl, TvType.Movie) {
+                    newMovieSearchResponse(displayName, detailUrl, TvType.Movie) {
                         this.posterUrl = poster
                         this.year = year
                         this.quality = SearchQuality.HD
@@ -458,7 +421,7 @@ class BGFLIXProvider : MainAPI() {
             }
         } catch (e: Exception) { }
 
-        // 3. Search Cinemeta for HD Series
+        // 3. Search Cinemeta Series
         try {
             val encoded = URLEncoder.encode(cleanQuery, "UTF-8")
             val searchUrl = "$mainUrl/catalog/series/top/search=$encoded.json"
@@ -476,10 +439,10 @@ class BGFLIXProvider : MainAPI() {
 
                 if (name.isEmpty() || imdbId.isEmpty()) continue
 
-                val dataUrl = "bgflix://cinemeta/series/$imdbId"
+                val detailUrl = "$mainUrl/meta/series/$imdbId.json"
 
                 results.add(
-                    newTvSeriesSearchResponse(name, dataUrl, TvType.TvSeries) {
+                    newTvSeriesSearchResponse(name, detailUrl, TvType.TvSeries) {
                         this.posterUrl = poster
                         this.year = year
                         this.quality = SearchQuality.HD
@@ -488,7 +451,7 @@ class BGFLIXProvider : MainAPI() {
             }
         } catch (e: Exception) { }
 
-        // 4. Search Filmifen for BG Audio content
+        // 4. Search Filmifen
         try {
             val encoded = URLEncoder.encode(cleanQuery, "UTF-8")
             val searchUrl = "$filmifenUrl/index.php?do=search&subaction=search&story=$encoded"
@@ -504,15 +467,15 @@ class BGFLIXProvider : MainAPI() {
     }
 
     // ==========================================
-    // 3. LOAD (LIVE CHANNEL, CINEMETA HD, OR FILMIFEN BG)
+    // 3. LOAD
     // ==========================================
     override suspend fun load(url: String): LoadResponse {
-        if (url.contains("seirsanduk.online")) {
-            return loadLiveChannel(url)
-        } else if (url.startsWith("bgflix://cinemeta/")) {
-            return loadCinemeta(url)
+        return if (url.contains("seirsanduk.online")) {
+            loadLiveChannel(url)
+        } else if (url.contains("cinemeta.strem.io") || url.contains("/meta/") || url.contains("bgflix://")) {
+            loadCinemeta(url)
         } else {
-            return loadFilmifen(url)
+            loadFilmifen(url)
         }
     }
 
@@ -538,11 +501,15 @@ class BGFLIXProvider : MainAPI() {
     }
 
     private suspend fun loadCinemeta(url: String): LoadResponse {
-        val parts = url.removePrefix("bgflix://cinemeta/").split("/")
-        val type = parts.getOrElse(0) { "movie" }
-        val imdbId = parts.getOrElse(1) { "" }
+        // Robust URL resolution: handles both direct meta URLs and any legacy URLs
+        val metaUrl = if (url.startsWith("http") && url.contains("/meta/")) {
+            url
+        } else {
+            val imdbMatch = Regex("""tt\d+""").find(url)?.value ?: ""
+            val type = if (url.contains("series")) "series" else "movie"
+            "$mainUrl/meta/$type/$imdbMatch.json"
+        }
 
-        val metaUrl = "$mainUrl/meta/$type/$imdbId.json"
         val response = app.get(metaUrl, headers = commonHeaders).text
         val json = JSONObject(response)
         val meta = json.getJSONObject("meta")
@@ -551,17 +518,21 @@ class BGFLIXProvider : MainAPI() {
         val poster = meta.optString("poster", "")
         val background = meta.optString("background", "")
         val description = meta.optString("description", "")
-        val year = meta.optString("year", "").toIntOrNull()
-            ?: meta.optString("releaseInfo", "").take(4).toIntOrNull()
+        val yearStr = (meta.optString("year", "").ifBlank { meta.optString("releaseInfo", "") }).trim()
+        val year = yearStr.take(4).toIntOrNull()
         val runtime = meta.optString("runtime", "")
         val imdbRating = meta.optString("imdbRating", "")
+        val imdbId = meta.optString("id", "").ifBlank { Regex("""tt\d+""").find(metaUrl)?.value ?: "" }
+        val type = meta.optString("type", "movie")
+
         val genres = mutableListOf<String>()
-        val genresArr = meta.optJSONArray("genres")
+        val genresArr = meta.optJSONArray("genres") ?: meta.optJSONArray("genre")
         if (genresArr != null) {
             for (i in 0 until genresArr.length()) {
                 genres.add(genresArr.optString(i))
             }
         }
+
         val cast = mutableListOf<String>()
         val castArr = meta.optJSONArray("cast")
         if (castArr != null) {
@@ -569,7 +540,12 @@ class BGFLIXProvider : MainAPI() {
                 cast.add(castArr.optString(i))
             }
         }
-        val director = meta.optString("director", "")
+
+        val director = when (val dirObj = meta.opt("director")) {
+            is JSONArray -> (0 until dirObj.length()).map { dirObj.optString(it) }.joinToString(", ")
+            is String -> dirObj
+            else -> ""
+        }
 
         val tmdbId = meta.optInt("moviedb_id", 0)
         val dataPayload = "$imdbId|$tmdbId|$type"
@@ -701,12 +677,9 @@ class BGFLIXProvider : MainAPI() {
     }
 
     // ==========================================
-    // 4. LOAD LINKS (DIRECT 1080p STREAMS + AUTO BG SUBTITLES)
+    // 4. LOAD LINKS
     // ==========================================
 
-    /**
-     * Fetches authentic Bulgarian subtitles from Subsunacs, Subs.sab.bz, and SubsLand.
-     */
     private suspend fun fetchBulgarianSubtitles(
         imdbId: String,
         season: Int? = null,
@@ -764,9 +737,6 @@ class BGFLIXProvider : MainAPI() {
         return foundAny
     }
 
-    /**
-     * Live TV stream extraction.
-     */
     private suspend fun loadLiveLinks(data: String, callback: (ExtractorLink) -> Unit): Boolean {
         var foundAny = false
         val streamHeaders = mapOf(
@@ -843,29 +813,27 @@ class BGFLIXProvider : MainAPI() {
         return foundAny
     }
 
-    /**
-     * REAL HD Direct Streaming Engine (VaPlayer HLS 1080p + VidLink CDN MP4 + Auto BG Subs).
-     * Data format: imdbId|tmdbId|type[|season|episode]
-     */
     private suspend fun loadHDLinks(
         data: String,
         subtitleCallback: (SubtitleFile) -> Unit,
         callback: (ExtractorLink) -> Unit
     ): Boolean {
         var foundAny = false
-        val parts = data.split("|")
-        val imdbId = parts.getOrElse(0) { "" }
-        val tmdbId = parts.getOrElse(1) { "0" }
-        val type = parts.getOrElse(2) { "movie" }
-        val season = parts.getOrElse(3) { "" }.toIntOrNull()
-        val episode = parts.getOrElse(4) { "" }.toIntOrNull()
 
+        // Resilient parser: extracts imdbId even if format varies
+        val imdbId = Regex("""tt\d+""").find(data)?.value ?: ""
         if (imdbId.isBlank()) return false
 
-        // 1. Always fetch authentic Bulgarian subtitles from Subsunacs / Subs.sab / SubsLand
+        val parts = data.split("|")
+        var tmdbId = parts.getOrNull(1)?.toIntOrNull() ?: 0
+        val type = if (data.contains("series")) "series" else "movie"
+        val season = parts.getOrNull(3)?.toIntOrNull()
+        val episode = parts.getOrNull(4)?.toIntOrNull()
+
+        // 1. Fetch authentic Bulgarian subtitles
         fetchBulgarianSubtitles(imdbId, season, episode, subtitleCallback)
 
-        // 2. SERVER 1: VaPlayer Direct 1080p HLS Streams (Ultra fast master.m3u8 adaptive streams)
+        // 2. SERVER 1: VaPlayer Direct 1080p HLS Streams
         try {
             val vaUrl = if (type == "series" && season != null && episode != null) {
                 "https://streamdata.vaplayer.ru/api.php?imdb=$imdbId&type=tv&season=$season&episode=$episode"
@@ -907,11 +875,19 @@ class BGFLIXProvider : MainAPI() {
             }
         } catch (e: Exception) { }
 
-        // 3. SERVER 2: VidLink Direct CDN MP4 Streams (1080p / 720p high-speed)
-        val tmdbInt = tmdbId.toIntOrNull() ?: 0
-        if (tmdbInt > 0) {
+        // If tmdbId is missing, try to resolve from Cinemeta
+        if (tmdbId <= 0) {
             try {
-                val encResp = app.get("https://enc-dec.app/api/enc-vidlink?text=$tmdbInt", timeout = 10).text
+                val metaResp = app.get("$mainUrl/meta/$type/$imdbId.json", headers = commonHeaders).text
+                val metaJson = JSONObject(metaResp)
+                tmdbId = metaJson.getJSONObject("meta").optInt("moviedb_id", 0)
+            } catch (e: Exception) { }
+        }
+
+        // 3. SERVER 2: VidLink Direct High-Speed CDN MP4 Streams
+        if (tmdbId > 0) {
+            try {
+                val encResp = app.get("https://enc-dec.app/api/enc-vidlink?text=$tmdbId", timeout = 10).text
                 val encData = JSONObject(encResp).optString("result", "")
 
                 if (encData.isNotBlank()) {
@@ -974,9 +950,6 @@ class BGFLIXProvider : MainAPI() {
         return foundAny
     }
 
-    /**
-     * Load streams from Filmifen (BG Audio content + HD fallback if available).
-     */
     private suspend fun loadFilmifenLinks(
         data: String,
         subtitleCallback: (SubtitleFile) -> Unit,
@@ -989,20 +962,11 @@ class BGFLIXProvider : MainAPI() {
 
         if (filmifenUrl2.isBlank()) return false
 
-        // If we have IMDb ID, also provide real 1080p HD streams + Bulgarian subtitles
         if (imdbId.isNotBlank()) {
-            var tmdbId = "0"
-            try {
-                val metaResp = app.get("$mainUrl/meta/movie/$imdbId.json", headers = commonHeaders).text
-                val metaJson = JSONObject(metaResp)
-                tmdbId = metaJson.getJSONObject("meta").optInt("moviedb_id", 0).toString()
-            } catch (e: Exception) { }
-
-            val hdFound = loadHDLinks("$imdbId|$tmdbId|movie", subtitleCallback, callback)
+            val hdFound = loadHDLinks(imdbId, subtitleCallback, callback)
             if (hdFound) foundAny = true
         }
 
-        // Also load Filmifen's native BG Audio sources
         try {
             val html = app.get(filmifenUrl2, headers = movieHeaders).text
             val playerDictRegex = Regex("""(?s)(?:const|var|let)?\s*[a-zA-Z0-9_]*\s*=\s*\{([^}]+(?:trailer|vdn|okr|voe|fmo)[^}]+)\}""")
@@ -1055,7 +1019,6 @@ class BGFLIXProvider : MainAPI() {
                 }
             }
 
-            // Fallback iframe check
             val doc = Jsoup.parse(html)
             doc.select("iframe[src]").forEach { iframe ->
                 var src = iframe.attr("src").trim()
