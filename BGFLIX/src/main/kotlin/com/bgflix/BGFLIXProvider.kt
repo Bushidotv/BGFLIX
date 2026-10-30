@@ -25,7 +25,7 @@ class BGFLIXProvider : MainAPI() {
         "live_movies" to "ТВ Канали: Филми & Сериали",
         "live_kids" to "ТВ Канали: Детски",
         "cinemeta_movie_top" to "🎬 Популярни Филми (HD)",
-        "cinemeta_movie_Action" to "💥 Екшън (HD)",
+        "cinemeta_movie_Action" to "💥 Екşън (HD)",
         "cinemeta_movie_Comedy" to "😂 Комедии (HD)",
         "cinemeta_movie_Horror" to "👻 Ужаси (HD)",
         "cinemeta_movie_Thriller" to "🔪 Трилъри (HD)",
@@ -276,7 +276,6 @@ class BGFLIXProvider : MainAPI() {
 
                 if (name.isEmpty() || imdbId.isEmpty()) continue
 
-                // Use valid HTTPS URL directly so CloudStream's fixUrl doesn't corrupt it
                 val detailUrl = "$mainUrl/meta/$type/$imdbId.json"
                 val displayName = if (imdbRating.isNotBlank()) "$name ⭐$imdbRating" else name
 
@@ -501,7 +500,6 @@ class BGFLIXProvider : MainAPI() {
     }
 
     private suspend fun loadCinemeta(url: String): LoadResponse {
-        // Robust URL resolution: handles both direct meta URLs and any legacy URLs
         val metaUrl = if (url.startsWith("http") && url.contains("/meta/")) {
             url
         } else {
@@ -677,7 +675,7 @@ class BGFLIXProvider : MainAPI() {
     }
 
     // ==========================================
-    // 4. LOAD LINKS
+    // 4. LOAD LINKS (SEEK-SAFE HLS STREAMING + AUTO BG SUBTITLES)
     // ==========================================
 
     private suspend fun fetchBulgarianSubtitles(
@@ -813,6 +811,10 @@ class BGFLIXProvider : MainAPI() {
         return foundAny
     }
 
+    /**
+     * Resolves VaPlayer master.m3u8 into direct variant playlists using M3u8Helper.
+     * This avoids ExoPlayer relative path resolution errors (ERROR_CODE_IO_BAD_HTTP_STATUS 2004) during seeking.
+     */
     private suspend fun loadHDLinks(
         data: String,
         subtitleCallback: (SubtitleFile) -> Unit,
@@ -820,12 +822,10 @@ class BGFLIXProvider : MainAPI() {
     ): Boolean {
         var foundAny = false
 
-        // Resilient parser: extracts imdbId even if format varies
         val imdbId = Regex("""tt\d+""").find(data)?.value ?: ""
         if (imdbId.isBlank()) return false
 
         val parts = data.split("|")
-        var tmdbId = parts.getOrNull(1)?.toIntOrNull() ?: 0
         val type = if (data.contains("series")) "series" else "movie"
         val season = parts.getOrNull(3)?.toIntOrNull()
         val episode = parts.getOrNull(4)?.toIntOrNull()
@@ -833,17 +833,19 @@ class BGFLIXProvider : MainAPI() {
         // 1. Fetch authentic Bulgarian subtitles
         fetchBulgarianSubtitles(imdbId, season, episode, subtitleCallback)
 
-        // 2. SERVER 1: VaPlayer Direct 1080p HLS Streams
+        // 2. VaPlayer Direct 1080p HLS Streams
+        val vaHeaders = mapOf(
+            "User-Agent" to "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+            "Referer" to "https://nextgencloudfabric.com/"
+        )
+
         try {
             val vaUrl = if (type == "series" && season != null && episode != null) {
                 "https://streamdata.vaplayer.ru/api.php?imdb=$imdbId&type=tv&season=$season&episode=$episode"
             } else {
                 "https://streamdata.vaplayer.ru/api.php?imdb=$imdbId&type=movie"
             }
-            val vaResp = app.get(vaUrl, headers = mapOf(
-                "User-Agent" to "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-                "Referer" to "https://nextgencloudfabric.com/"
-            ), timeout = 10).text
+            val vaResp = app.get(vaUrl, headers = vaHeaders, timeout = 10).text
 
             val vaJson = JSONObject(vaResp)
             val dataObj = vaJson.optJSONObject("data")
@@ -854,98 +856,47 @@ class BGFLIXProvider : MainAPI() {
                     val streamUrl = streamUrls.optString(i)
                     if (streamUrl.isNotBlank()) {
                         val serverNum = i + 1
-                        callback.invoke(
-                            newExtractorLink(
+
+                        // Use M3u8Helper to resolve variant playlists to absolute URLs
+                        // which enables smooth seeking without 2004 bad HTTP status error
+                        var m3u8Success = false
+                        try {
+                            val resolvedLinks = M3u8Helper.generateM3u8(
                                 source = name,
-                                name = "$name - 1080p Full HD (Сървър $serverNum)",
-                                url = streamUrl,
-                                type = ExtractorLinkType.M3U8
-                            ) {
-                                this.referer = "https://nextgencloudfabric.com/"
-                                this.headers = mapOf(
-                                    "User-Agent" to "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-                                    "Referer" to "https://nextgencloudfabric.com/"
-                                )
-                                this.quality = Qualities.P1080.value
+                                streamUrl = streamUrl,
+                                referer = "https://nextgencloudfabric.com/",
+                                headers = vaHeaders,
+                                name = "$name - 1080p HD (Сървър $serverNum)"
+                            )
+                            if (resolvedLinks.isNotEmpty()) {
+                                resolvedLinks.forEach { link ->
+                                    callback.invoke(link)
+                                    foundAny = true
+                                }
+                                m3u8Success = true
                             }
-                        )
-                        foundAny = true
+                        } catch (e: Exception) { }
+
+                        // Fallback to direct link if M3u8Helper couldn't parse
+                        if (!m3u8Success) {
+                            callback.invoke(
+                                newExtractorLink(
+                                    source = name,
+                                    name = "$name - 1080p HD (Сървър $serverNum)",
+                                    url = streamUrl,
+                                    type = ExtractorLinkType.M3U8
+                                ) {
+                                    this.referer = "https://nextgencloudfabric.com/"
+                                    this.headers = vaHeaders
+                                    this.quality = Qualities.P1080.value
+                                }
+                            )
+                            foundAny = true
+                        }
                     }
                 }
             }
         } catch (e: Exception) { }
-
-        // If tmdbId is missing, try to resolve from Cinemeta
-        if (tmdbId <= 0) {
-            try {
-                val metaResp = app.get("$mainUrl/meta/$type/$imdbId.json", headers = commonHeaders).text
-                val metaJson = JSONObject(metaResp)
-                tmdbId = metaJson.getJSONObject("meta").optInt("moviedb_id", 0)
-            } catch (e: Exception) { }
-        }
-
-        // 3. SERVER 2: VidLink Direct High-Speed CDN MP4 Streams
-        if (tmdbId > 0) {
-            try {
-                val encResp = app.get("https://enc-dec.app/api/enc-vidlink?text=$tmdbId", timeout = 10).text
-                val encData = JSONObject(encResp).optString("result", "")
-
-                if (encData.isNotBlank()) {
-                    val epUrl = if (type == "series" && season != null && episode != null) {
-                        "https://vidlink.pro/api/b/tv/$encData/$season/$episode"
-                    } else {
-                        "https://vidlink.pro/api/b/movie/$encData"
-                    }
-
-                    val vidlinkHeaders = mapOf(
-                        "User-Agent" to "Mozilla/5.0 (Linux; Android 11; Mi 9T Pro) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/95.0.4638.69 Mobile Safari/537.36 EdgA/95.0.1020.48",
-                        "Connection" to "keep-alive",
-                        "Referer" to "https://vidlink.pro/",
-                        "Origin" to "https://vidlink.pro"
-                    )
-
-                    val vidlinkResp = app.get(epUrl, headers = vidlinkHeaders, timeout = 10).text
-                    val vidlinkJson = JSONObject(vidlinkResp)
-                    val streamObj = vidlinkJson.optJSONObject("stream")
-                    val qualitiesObj = streamObj?.optJSONObject("qualities")
-
-                    if (qualitiesObj != null) {
-                        val keys = qualitiesObj.keys()
-                        while (keys.hasNext()) {
-                            val qKey = keys.next()
-                            val qData = qualitiesObj.optJSONObject(qKey)
-                            val qUrl = qData?.optString("url", "") ?: ""
-
-                            if (qUrl.isNotBlank()) {
-                                val qualityVal = when (qKey) {
-                                    "1080" -> Qualities.P1080.value
-                                    "720"  -> Qualities.P720.value
-                                    "480"  -> Qualities.P480.value
-                                    else   -> Qualities.P720.value
-                                }
-
-                                callback.invoke(
-                                    newExtractorLink(
-                                        source = name,
-                                        name = "$name - Бърз Сървър CDN (${qKey}p)",
-                                        url = qUrl,
-                                        type = ExtractorLinkType.VIDEO
-                                    ) {
-                                        this.referer = "https://vidlink.pro/"
-                                        this.headers = mapOf(
-                                            "User-Agent" to "Mozilla/5.0 (Linux; Android 11; Mi 9T Pro) AppleWebKit/537.36",
-                                            "Referer" to "https://vidlink.pro/"
-                                        )
-                                        this.quality = qualityVal
-                                    }
-                                )
-                                foundAny = true
-                            }
-                        }
-                    }
-                }
-            } catch (e: Exception) { }
-        }
 
         return foundAny
     }
