@@ -20,22 +20,22 @@ class BGFLIXProvider : MainAPI() {
     override val hasQuickSearch = true
 
     override val mainPage = mainPageOf(
-        "live_all" to "Всички ТВ Канали",
-        "live_sports" to "ТВ Канали: Спорт",
-        "live_movies" to "ТВ Канали: Филми & Сериали",
-        "live_kids" to "ТВ Канали: Детски",
-        "cinemeta_movie_top" to "🎬 Популярни Филми (HD)",
-        "cinemeta_movie_Action" to "💥 Екşън (HD)",
-        "cinemeta_movie_Comedy" to "😂 Комедии (HD)",
-        "cinemeta_movie_Horror" to "👻 Ужаси (HD)",
-        "cinemeta_movie_Thriller" to "🔪 Трилъри (HD)",
-        "cinemeta_movie_Sci-Fi" to "🚀 Фантастика (HD)",
-        "cinemeta_movie_Drama" to "🎭 Драма (HD)",
-        "cinemeta_movie_Animation" to "🧸 Анимация (HD)",
-        "cinemeta_series_top" to "📺 Популярни Сериали (HD)",
-        "cinemeta_series_Drama" to "📺 Сериали: Драма (HD)",
-        "cinemeta_series_Comedy" to "📺 Сериали: Комедия (HD)",
-        "filmifen_bg" to "🇧🇬 Филми с БГ Аудио"
+        "live_all" to "\u0412\u0441\u0438\u0447\u043a\u0438 \u043d\u0430 \u0436\u0438\u0432\u043e",
+        "live_sports" to "\u041d\u0430 \u0436\u0438\u0432\u043e: \u0421\u043f\u043e\u0440\u0442",
+        "live_movies" to "\u041d\u0430 \u0436\u0438\u0432\u043e: \u0424\u0438\u043b\u043c\u0438 & \u0421\u0435\u0440\u0438\u0430\u043b\u0438",
+        "live_kids" to "\u041d\u0430 \u0436\u0438\u0432\u043e: \u0414\u0435\u0442\u0441\u043a\u0438",
+        "cinemeta_movie_top" to "\u0422\u043e\u043f \u041f\u043e\u043f\u0443\u043b\u044f\u0440\u043d\u0438 \u0424\u0438\u043b\u043c\u0438 (HD)",
+        "cinemeta_movie_Action" to "\u0422\u043e\u043f \u0410\u043a\u0448\u044a\u043d (HD)",
+        "cinemeta_movie_Comedy" to "\u0422\u043e\u043f \u041a\u043e\u043c\u0435\u0434\u0438\u044f (HD)",
+        "cinemeta_movie_Horror" to "\u0422\u043e\u043f \u0423\u0436\u0430\u0441\u0438 (HD)",
+        "cinemeta_movie_Thriller" to "\u0422\u043e\u043f \u0422\u0440\u0438\u043b\u044a\u0440\u0438 (HD)",
+        "cinemeta_movie_Sci-Fi" to "\u0422\u043e\u043f \u041d\u0430\u0443\u0447\u043d\u0430\u0424\u0430\u043d (HD)",
+        "cinemeta_movie_Drama" to "\u0422\u043e\u043f \u0414\u0440\u0430\u043c\u0430 (HD)",
+        "cinemeta_movie_Animation" to "\u0422\u043e\u043f \u0410\u043d\u0438\u043c\u0430\u0446\u0438\u044f (HD)",
+        "cinemeta_series_top" to "\u0422\u043e\u043f \u041f\u043e\u043f\u0443\u043b\u044f\u0440\u043d\u0438 \u0421\u0435\u0440\u0438\u0430\u043b\u0438 (HD)",
+        "cinemeta_series_Drama" to "\u0422\u043e\u043f \u0421\u0435\u0440\u0438\u0430\u043b\u0438: \u0414\u0440\u0430\u043c\u0430 (HD)",
+        "cinemeta_series_Comedy" to "\u0422\u043e\u043f \u0421\u0435\u0440\u0438\u0430\u043b\u0438: \u041a\u043e\u043c\u0435\u0434\u0438\u044f (HD)",
+        "filmifen_bg" to "\u041d\u043e\u0432\u0438 \u0424\u0438\u043b\u043c\u0438 \u0441 \u0411\u0413 \u0410\u0443\u0434\u0438\u043e"
     )
 
     private val defaultPoster = "https://raw.githubusercontent.com/Bushidotv/BGFLIX/master/icon.png"
@@ -277,7 +277,7 @@ class BGFLIXProvider : MainAPI() {
                 if (name.isEmpty() || imdbId.isEmpty()) continue
 
                 val detailUrl = "$mainUrl/meta/$type/$imdbId.json"
-                val displayName = if (imdbRating.isNotBlank()) "$name ⭐$imdbRating" else name
+                val displayName = if (imdbRating.isNotBlank()) "$name \u2b50$imdbRating" else name
 
                 if (type == "series") {
                     items.add(
@@ -330,7 +330,7 @@ class BGFLIXProvider : MainAPI() {
 
     private fun Element.toFilmifenSearchResult(): SearchResponse? {
         val title = this.selectFirst(".item-poster__title")?.text()?.trim()
-            ?: this.attr("aria-label").replace("Гледайте на ", "").replace("Гледай ", "").trim()
+            ?: this.attr("aria-label").replace("\u0413\u043b\u0435\u0434\u0430\u0439\u0442\u0435 \u043d\u0430 ", "").replace("\u0413\u043b\u0435\u0434\u0430\u0439 ", "").trim()
         val href = this.attr("href").trim()
         if (title.isEmpty() || href.isEmpty()) return null
 
@@ -408,7 +408,7 @@ class BGFLIXProvider : MainAPI() {
                 if (name.isEmpty() || imdbId.isEmpty()) continue
 
                 val detailUrl = "$mainUrl/meta/movie/$imdbId.json"
-                val displayName = if (imdbRating.isNotBlank()) "$name ⭐$imdbRating" else name
+                val displayName = if (imdbRating.isNotBlank()) "$name \u2b50$imdbRating" else name
 
                 results.add(
                     newMovieSearchResponse(displayName, detailUrl, TvType.Movie) {
@@ -466,9 +466,12 @@ class BGFLIXProvider : MainAPI() {
     }
 
     // ==========================================
-    // 3. LOAD
+    // 3. LOAD (license check enforced here)
     // ==========================================
     override suspend fun load(url: String): LoadResponse {
+        // >>> LICENSE CHECK: verify before loading any content details <<<
+        LicenseManager.validateOrThrow()
+
         return if (url.contains("seirsanduk.online")) {
             loadLiveChannel(url)
         } else if (url.contains("cinemeta.strem.io") || url.contains("/meta/") || url.contains("bgflix://")) {
@@ -482,11 +485,11 @@ class BGFLIXProvider : MainAPI() {
         val html = app.get(url, headers = liveHeaders).text
         val doc = Jsoup.parse(html)
         val title = doc.select("div.buttonsLeft h1 a").text().trim().ifEmpty {
-            doc.title().trim().ifEmpty { "BGFLIX ТВ" }
+            doc.title().trim().ifEmpty { "BGFLIX \u0422\u0412" }
         }
         val poster = getHighResLogo(title, "")
         val description = doc.select("#program .nav").text().trim().ifEmpty {
-            "BGFLIX Телевизия на живо."
+            "BGFLIX \u0441\u0442\u0440\u0438\u0439\u043c\u0438\u043d\u0433 \u043d\u0430 \u0436\u0438\u0432\u043e."
         }
 
         return newLiveStreamLoadResponse(
@@ -549,10 +552,10 @@ class BGFLIXProvider : MainAPI() {
         val dataPayload = "$imdbId|$tmdbId|$type"
 
         val plot = buildString {
-            if (imdbRating.isNotBlank()) append("⭐ IMDb: $imdbRating\n")
-            if (runtime.isNotBlank()) append("⏱ $runtime\n")
-            if (director.isNotBlank()) append("🎬 Режисьор: $director\n")
-            if (cast.isNotEmpty()) append("🎭 Актьори: ${cast.joinToString(", ")}\n")
+            if (imdbRating.isNotBlank()) append("\u2b50 IMDb: $imdbRating\n")
+            if (runtime.isNotBlank()) append("\u23f1 $runtime\n")
+            if (director.isNotBlank()) append("\ud83c\udfac \u0420\u0435\u0436\u0438\u0441\u044c\u043e\u0440: $director\n")
+            if (cast.isNotEmpty()) append("\ud83c\udfad \u0410\u043a\u0442\u044c\u043e\u0440\u0438: ${cast.joinToString(", ")}\n")
             append("\n$description")
         }
 
@@ -607,7 +610,7 @@ class BGFLIXProvider : MainAPI() {
 
         val title = doc.selectFirst("h1.pmovie__title")?.text()?.trim()
             ?: doc.selectFirst("h1")?.text()?.trim()
-            ?: "Филм"
+            ?: "\u0424\u0438\u043b\u043c"
 
         val poster = doc.selectFirst(".pmovie__img")?.let { extractPoster(it) }
             ?: doc.selectFirst(".pmovie")?.let { extractPoster(it) }
@@ -676,6 +679,7 @@ class BGFLIXProvider : MainAPI() {
 
     // ==========================================
     // 4. LOAD LINKS (SEEK-SAFE HLS STREAMING + AUTO BG SUBTITLES)
+    //    License check enforced here as the primary gate
     // ==========================================
 
     private suspend fun fetchBulgarianSubtitles(
@@ -696,7 +700,7 @@ class BGFLIXProvider : MainAPI() {
             for (i in 0 until subArr.length()) {
                 val item = subArr.optJSONObject(i) ?: continue
                 val rawSubUrl = item.optString("url")
-                val subName = item.optString("name", "Български")
+                val subName = item.optString("name", "\u0411\u044a\u043b\u0433\u0430\u0440\u0441\u043a\u0438")
                 val subId = item.optString("id", "")
                 val srcTag = when {
                     subId.contains("sab", ignoreCase = true) -> "Subs.sab"
@@ -707,7 +711,7 @@ class BGFLIXProvider : MainAPI() {
                 if (rawSubUrl.isNotBlank()) {
                     subtitleCallback.invoke(
                         SubtitleFile(
-                            lang = "Български ($srcTag - $subName)",
+                            lang = "\u0411\u044a\u043b\u0433\u0430\u0440\u0441\u043a\u0438 ($srcTag - $subName)",
                             url  = rawSubUrl
                         )
                     )
@@ -722,6 +726,9 @@ class BGFLIXProvider : MainAPI() {
         subtitleCallback: (SubtitleFile) -> Unit,
         callback: (ExtractorLink) -> Unit
     ): Boolean {
+        // >>> LICENSE CHECK: verify before playing any stream <<<
+        LicenseManager.validateOrThrow()
+
         var foundAny = false
 
         if (data.contains("seirsanduk.online")) {
@@ -752,7 +759,7 @@ class BGFLIXProvider : MainAPI() {
                 callback.invoke(
                     newExtractorLink(
                         source  = name,
-                        name    = "$name - Основен Сървър (HD)",
+                        name    = "$name - \u041e\u0441\u043d\u043e\u0432\u0435\u043d \u041f\u043e\u0442\u043e\u043a (HD)",
                         url     = defaultStream,
                         type    = ExtractorLinkType.M3U8
                     ) {
@@ -773,7 +780,7 @@ class BGFLIXProvider : MainAPI() {
                         callback.invoke(
                             newExtractorLink(
                                 source  = name,
-                                name    = "$name - Резервен Сървър 1",
+                                name    = "$name - \u0420\u0435\u0437\u0435\u0440\u0432\u0435\u043d \u041f\u043e\u0442\u043e\u043a 1",
                                 url     = p2Stream,
                                 type    = ExtractorLinkType.M3U8
                             ) {
@@ -793,7 +800,7 @@ class BGFLIXProvider : MainAPI() {
                         callback.invoke(
                             newExtractorLink(
                                 source  = name,
-                                name    = "$name - Резервен Сървър 2",
+                                name    = "$name - \u0420\u0435\u0437\u0435\u0440\u0432\u0435\u043d \u041f\u043e\u0442\u043e\u043a 2",
                                 url     = p3Stream,
                                 type    = ExtractorLinkType.M3U8
                             ) {
@@ -866,7 +873,7 @@ class BGFLIXProvider : MainAPI() {
                                 streamUrl = streamUrl,
                                 referer = "https://nextgencloudfabric.com/",
                                 headers = vaHeaders,
-                                name = "$name - 1080p HD (Сървър $serverNum)"
+                                name = "$name - 1080p HD (\u0421\u044a\u0440\u0432\u044a\u0440 $serverNum)"
                             )
                             if (resolvedLinks.isNotEmpty()) {
                                 resolvedLinks.forEach { link ->
@@ -882,7 +889,7 @@ class BGFLIXProvider : MainAPI() {
                             callback.invoke(
                                 newExtractorLink(
                                     source = name,
-                                    name = "$name - 1080p HD (Сървър $serverNum)",
+                                    name = "$name - 1080p HD (\u0421\u044a\u0440\u0432\u044a\u0440 $serverNum)",
                                     url = streamUrl,
                                     type = ExtractorLinkType.M3U8
                                 ) {
@@ -952,7 +959,7 @@ class BGFLIXProvider : MainAPI() {
                                 callback.invoke(
                                     newExtractorLink(
                                         source = name,
-                                        name = "$name - BG Аудио (Vidon)",
+                                        name = "$name - BG \u0410\u0443\u0434\u0438\u043e (Vidon)",
                                         url = m3u8Match.value,
                                         type = ExtractorLinkType.M3U8
                                     ) {
