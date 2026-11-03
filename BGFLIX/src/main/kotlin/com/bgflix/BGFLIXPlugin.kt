@@ -9,10 +9,13 @@ import com.lagradost.cloudstream3.plugins.Plugin
 class BGFLIXPlugin: Plugin() {
     private var activity: AppCompatActivity? = null
 
+    companion object {
+        const val LICENSE_PREF_KEY = "bgflix_license_key"
+    }
+
     override fun load(context: Context) {
         activity = context as? AppCompatActivity
 
-        // Регистрация на BGFLIX провайдъра (ТВ Канали, Филми и Сериали)
         registerMainAPI(BGFLIXProvider())
 
         openSettings = {
