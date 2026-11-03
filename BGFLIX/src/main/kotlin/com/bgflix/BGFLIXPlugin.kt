@@ -16,6 +16,10 @@ class BGFLIXPlugin: Plugin() {
     override fun load(context: Context) {
         activity = context as? AppCompatActivity
 
+        // Initialize license manager with app context
+        LicenseManager.init(context)
+
+        // Register the BGFLIX provider
         registerMainAPI(BGFLIXProvider())
 
         openSettings = {
