@@ -916,7 +916,74 @@ class BGFLIXProvider : MainAPI() {
         // 1. Fetch authentic Bulgarian subtitles
         fetchBulgarianSubtitles(imdbId, season, episode, subtitleCallback)
 
-        // 2. VaPlayer Direct 1080p HLS Streams
+        // 2. VixSrc Direct High-Speed HLS Streams (1080p / 720p Direct Playback)
+        try {
+            val vixHeaders = mapOf(
+                "User-Agent" to "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+                "Referer" to "https://vixsrc.to/"
+            )
+            val vixApiUrl = if (type == "series" && season != null && episode != null) {
+                "https://vixsrc.to/api/tv/$imdbId/$season/$episode"
+            } else {
+                "https://vixsrc.to/api/movie/$imdbId"
+            }
+
+            val vixResp = app.get(vixApiUrl, headers = vixHeaders, timeout = 10).text
+            val vixJson = JSONObject(vixResp)
+            val embedPath = vixJson.optString("src", "")
+            if (embedPath.isNotBlank()) {
+                val embedUrl = if (embedPath.startsWith("http")) embedPath else "https://vixsrc.to$embedPath"
+                val embedHtml = app.get(embedUrl, headers = vixHeaders, timeout = 10).text
+
+                val tokenMatch = Regex("""["']token["']:\s*["']([^"']+)["']""").find(embedHtml)?.groupValues?.get(1)
+                val expiresMatch = Regex("""["']expires["']:\s*["']([^"']+)["']""").find(embedHtml)?.groupValues?.get(1)
+                val urlMatch = Regex("""url:\s*["']([^"']+)["']""").find(embedHtml)?.groupValues?.get(1)
+
+                if (!tokenMatch.isNullOrBlank() && !expiresMatch.isNullOrBlank() && !urlMatch.isNullOrBlank()) {
+                    val m3u8Url = "$urlMatch.m3u8?token=$tokenMatch&expires=$expiresMatch&h=1"
+                    val streamHeaders = mapOf(
+                        "User-Agent" to "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+                        "Referer" to embedUrl
+                    )
+
+                    var m3u8Ok = false
+                    try {
+                        val resolved = M3u8Helper.generateM3u8(
+                            source = name,
+                            streamUrl = m3u8Url,
+                            referer = embedUrl,
+                            headers = streamHeaders,
+                            name = "$name - 1080p Ultra HD"
+                        )
+                        if (resolved.isNotEmpty()) {
+                            resolved.forEach { link ->
+                                callback.invoke(link)
+                                foundAny = true
+                            }
+                            m3u8Ok = true
+                        }
+                    } catch (e: Exception) { }
+
+                    if (!m3u8Ok) {
+                        callback.invoke(
+                            newExtractorLink(
+                                source = name,
+                                name = "$name - 1080p Ultra HD (Direct)",
+                                url = m3u8Url,
+                                type = ExtractorLinkType.M3U8
+                            ) {
+                                this.referer = embedUrl
+                                this.headers = streamHeaders
+                                this.quality = Qualities.P1080.value
+                            }
+                        )
+                        foundAny = true
+                    }
+                }
+            }
+        } catch (e: Exception) { }
+
+        // 3. VaPlayer Direct 1080p HLS Streams
         val vaHeaders = mapOf(
             "User-Agent" to "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
             "Referer" to "https://nextgencloudfabric.com/"
@@ -981,7 +1048,7 @@ class BGFLIXProvider : MainAPI() {
             }
         } catch (e: Exception) { }
 
-        // 3. Fallback: Torrentio High-Quality Streams (Ensures movies like Das Experiment & classics always play)
+        // 4. Fallback: Torrentio High-Quality Streams (Ensures movies like Das Experiment & classics always play)
         try {
             val torrentioUrl = if (type == "series" && season != null && episode != null) {
                 "https://torrentio.strem.fun/stream/series/$imdbId:$season:$episode.json"
