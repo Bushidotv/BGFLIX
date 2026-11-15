@@ -42,44 +42,22 @@ class BGFLIXProvider : MainAPI() {
     private val rawLogoBase = "https://raw.githubusercontent.com/Bushidotv/BGFLIX/master/logos_hd"
 
     private val commonHeaders = mapOf(
-        "User-Agent" to "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
+        "User-Agent" to "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
     )
 
     private val liveHeaders = mapOf(
-        "User-Agent" to "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "User-Agent" to "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
         "Referer"    to "$seirsandukUrl/",
         "Origin"     to seirsandukUrl,
         "Accept"     to "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8"
     )
 
     private val movieHeaders = mapOf(
-        "User-Agent" to "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "User-Agent" to "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
         "Referer"    to "$filmifenUrl/",
         "Accept"     to "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
         "Accept-Language" to "bg,en;q=0.9"
     )
-
-    // ==========================================
-    // ANTI-CACHE: Force fresh content every time
-    // ==========================================
-
-    /**
-     * Generates a cache-busting timestamp parameter.
-     * Changes every 6 hours so users see fresh content throughout the day
-     * but the same request within a window can still be served efficiently.
-     */
-    private fun cacheBuster(): String {
-        val sixHourBlock = System.currentTimeMillis() / (6 * 60 * 60 * 1000L)
-        return "_cb=$sixHourBlock"
-    }
-
-    /**
-     * Appends cache-buster to any URL. Handles existing query parameters.
-     */
-    private fun bustCache(url: String): String {
-        val separator = if (url.contains("?")) "&" else "?"
-        return "$url${separator}${cacheBuster()}"
-    }
 
     /**
      * Maps channel names to custom high-definition crystal clear logos.
@@ -217,8 +195,7 @@ class BGFLIXProvider : MainAPI() {
 
     private suspend fun getLiveChannelsPage(request: MainPageRequest): HomePageResponse {
         val channelList = mutableListOf<SearchResponse>()
-        // FIX #2: Cache-bust live channel list so it always fetches fresh
-        val htmlResponse = app.get(bustCache("$seirsandukUrl/"), headers = liveHeaders, cacheTime = 0).text
+        val htmlResponse = app.get("$seirsandukUrl/", headers = liveHeaders).text
         val document = Jsoup.parse(htmlResponse)
         val channelElements = document.select("#channels li a")
 
@@ -284,8 +261,7 @@ class BGFLIXProvider : MainAPI() {
 
         val items = mutableListOf<SearchResponse>()
         try {
-            // FIX #2: Cache-bust cinemeta catalog so users see fresh/trending content
-            val response = app.get(bustCache(catalogUrl), headers = commonHeaders, cacheTime = 0).text
+            val response = app.get(catalogUrl, headers = commonHeaders).text
             val json = JSONObject(response)
             val metas = json.optJSONArray("metas") ?: JSONArray()
 
@@ -336,8 +312,7 @@ class BGFLIXProvider : MainAPI() {
             "$filmifenUrl/filmi-bg-audio/page/$page/"
         }
 
-        // FIX #2: Cache-bust filmifen so new BG audio movies appear daily
-        val html = app.get(bustCache(url), headers = movieHeaders, cacheTime = 0).text
+        val html = app.get(url, headers = movieHeaders).text
         val doc = Jsoup.parse(html)
         val items = doc.select(".item-poster, .item.grid-item, #dle-content a.item").mapNotNull { el ->
             el.toFilmifenSearchResult()
@@ -390,7 +365,7 @@ class BGFLIXProvider : MainAPI() {
 
         // 1. Search Live TV
         try {
-            val liveHtml = app.get("$seirsandukUrl/", headers = liveHeaders, cacheTime = 0).text
+            val liveHtml = app.get("$seirsandukUrl/", headers = liveHeaders).text
             val liveDoc = Jsoup.parse(liveHtml)
             liveDoc.select("#channels li a").forEach { el ->
                 val title = el.text().trim()
@@ -417,7 +392,7 @@ class BGFLIXProvider : MainAPI() {
         try {
             val encoded = URLEncoder.encode(cleanQuery, "UTF-8")
             val searchUrl = "$mainUrl/catalog/movie/top/search=$encoded.json"
-            val response = app.get(searchUrl, headers = commonHeaders, cacheTime = 0).text
+            val response = app.get(searchUrl, headers = commonHeaders).text
             val json = JSONObject(response)
             val metas = json.optJSONArray("metas") ?: JSONArray()
 
@@ -449,7 +424,7 @@ class BGFLIXProvider : MainAPI() {
         try {
             val encoded = URLEncoder.encode(cleanQuery, "UTF-8")
             val searchUrl = "$mainUrl/catalog/series/top/search=$encoded.json"
-            val response = app.get(searchUrl, headers = commonHeaders, cacheTime = 0).text
+            val response = app.get(searchUrl, headers = commonHeaders).text
             val json = JSONObject(response)
             val metas = json.optJSONArray("metas") ?: JSONArray()
 
@@ -479,7 +454,7 @@ class BGFLIXProvider : MainAPI() {
         try {
             val encoded = URLEncoder.encode(cleanQuery, "UTF-8")
             val searchUrl = "$filmifenUrl/index.php?do=search&subaction=search&story=$encoded"
-            val movieHtml = app.get(searchUrl, headers = movieHeaders, cacheTime = 0).text
+            val movieHtml = app.get(searchUrl, headers = movieHeaders).text
             val movieDoc = Jsoup.parse(movieHtml)
 
             movieDoc.select(".item-poster, .item.grid-item, #dle-content a.item").forEach { el ->
@@ -507,7 +482,7 @@ class BGFLIXProvider : MainAPI() {
     }
 
     private suspend fun loadLiveChannel(url: String): LoadResponse {
-        val html = app.get(url, headers = liveHeaders, cacheTime = 0).text
+        val html = app.get(url, headers = liveHeaders).text
         val doc = Jsoup.parse(html)
         val title = doc.select("div.buttonsLeft h1 a").text().trim().ifEmpty {
             doc.title().trim().ifEmpty { "BGFLIX \u0422\u0412" }
@@ -536,7 +511,7 @@ class BGFLIXProvider : MainAPI() {
             "$mainUrl/meta/$type/$imdbMatch.json"
         }
 
-        val response = app.get(metaUrl, headers = commonHeaders, cacheTime = 0).text
+        val response = app.get(metaUrl, headers = commonHeaders).text
         val json = JSONObject(response)
         val meta = json.getJSONObject("meta")
 
@@ -630,7 +605,7 @@ class BGFLIXProvider : MainAPI() {
     }
 
     private suspend fun loadFilmifen(url: String): LoadResponse {
-        val html = app.get(url, headers = movieHeaders, cacheTime = 0).text
+        val html = app.get(url, headers = movieHeaders).text
         val doc = Jsoup.parse(html)
 
         val title = doc.selectFirst("h1.pmovie__title")?.text()?.trim()
@@ -705,7 +680,6 @@ class BGFLIXProvider : MainAPI() {
     // ==========================================
     // 4. LOAD LINKS (SEEK-SAFE HLS STREAMING + AUTO BG SUBTITLES)
     //    License check enforced here as the primary gate
-    //    FIX #1: Multi-source fallback chain for 100% movie playback
     // ==========================================
 
     private suspend fun fetchBulgarianSubtitles(
@@ -714,7 +688,6 @@ class BGFLIXProvider : MainAPI() {
         episode: Int? = null,
         subtitleCallback: (SubtitleFile) -> Unit
     ) {
-        // Source 1: bulgarian-subs-addon
         try {
             val subUrl = if (season != null && episode != null) {
                 "https://bulgarian-subs-addon.onrender.com/subtitles/series/$imdbId:$season:$episode.json"
@@ -745,34 +718,6 @@ class BGFLIXProvider : MainAPI() {
                 }
             }
         } catch (e: Exception) { }
-
-        // Source 2: OpenSubtitles via Stremio addon (fallback for BG subs)
-        try {
-            val osUrl = if (season != null && episode != null) {
-                "https://opensubtitles-v3.strem.io/subtitles/series/$imdbId:$season:$episode.json"
-            } else {
-                "https://opensubtitles-v3.strem.io/subtitles/movie/$imdbId.json"
-            }
-            val osResp = app.get(osUrl, timeout = 10).text
-            val osJson = JSONObject(osResp)
-            val osArr = osJson.optJSONArray("subtitles") ?: return
-            for (i in 0 until osArr.length()) {
-                val item = osArr.optJSONObject(i) ?: continue
-                val lang = item.optString("lang", "")
-                if (lang.contains("bul", ignoreCase = true) || lang.contains("bg", ignoreCase = true)) {
-                    val subUrl2 = item.optString("url", "")
-                    val subName2 = item.optString("SubFileName", "OpenSubtitles BG")
-                    if (subUrl2.isNotBlank()) {
-                        subtitleCallback.invoke(
-                            SubtitleFile(
-                                lang = "\u0411\u044a\u043b\u0433\u0430\u0440\u0441\u043a\u0438 (OpenSubs - $subName2)",
-                                url  = subUrl2
-                            )
-                        )
-                    }
-                }
-            }
-        } catch (e: Exception) { }
     }
 
     override suspend fun loadLinks(
@@ -800,28 +745,16 @@ class BGFLIXProvider : MainAPI() {
     private suspend fun loadLiveLinks(data: String, callback: (ExtractorLink) -> Unit): Boolean {
         var foundAny = false
         val streamHeaders = mapOf(
-            "User-Agent" to "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+            "User-Agent" to "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
             "Referer"    to "$seirsandukUrl/",
             "Origin"     to seirsandukUrl,
             "Accept"     to "*/*"
         )
-        // FIX #1: Extended regex patterns to catch more m3u8 URL formats used by stream providers
-        val m3u8Patterns = listOf(
-            Regex("""file:\s*['"](https?://[^'"]+\.m3u8[^'"]*)['"]\s*"""),
-            Regex("""src:\s*['"](https?://[^'"]+\.m3u8[^'"]*)['"]\s*"""),
-            Regex("""source:\s*['"](https?://[^'"]+\.m3u8[^'"]*)['"]\s*"""),
-            Regex("""['"](https?://[^'"]*\.m3u8(?:\?[^'"]*)?)['"]\s*""")
-        )
+        val m3u8Regex = Regex("""file:\s*['"](https?://[^'"]+\.m3u8[^'"]*)['"]\s*""")
 
         try {
-            val defaultHtml = app.get(data, headers = liveHeaders, cacheTime = 0).text
-
-            var defaultStream: String? = null
-            for (pattern in m3u8Patterns) {
-                defaultStream = pattern.find(defaultHtml)?.groupValues?.get(1)
-                if (!defaultStream.isNullOrEmpty()) break
-            }
-
+            val defaultHtml = app.get(data, headers = liveHeaders).text
+            val defaultStream = m3u8Regex.find(defaultHtml)?.groupValues?.get(1)
             if (!defaultStream.isNullOrEmpty()) {
                 callback.invoke(
                     newExtractorLink(
@@ -840,39 +773,45 @@ class BGFLIXProvider : MainAPI() {
 
             val channelId = Uri.parse(data).getQueryParameter("id")
             if (!channelId.isNullOrEmpty()) {
-                // Try multiple player endpoints for redundancy
-                val playerEndpoints = listOf(
-                    "$seirsandukUrl/?player=12&id=$channelId&pass=",
-                    "$seirsandukUrl/?player=13&id=$channelId&pass=",
-                    "$seirsandukUrl/?player=14&id=$channelId&pass=",
-                    "$seirsandukUrl/?player=15&id=$channelId&pass="
-                )
+                try {
+                    val p2Html = app.get("$seirsandukUrl/?player=12&id=$channelId&pass=", headers = liveHeaders).text
+                    val p2Stream = m3u8Regex.find(p2Html)?.groupValues?.get(1)
+                    if (!p2Stream.isNullOrEmpty() && p2Stream != defaultStream) {
+                        callback.invoke(
+                            newExtractorLink(
+                                source  = name,
+                                name    = "$name - \u0420\u0435\u0437\u0435\u0440\u0432\u0435\u043d \u041f\u043e\u0442\u043e\u043a 1",
+                                url     = p2Stream,
+                                type    = ExtractorLinkType.M3U8
+                            ) {
+                                this.referer = "$seirsandukUrl/"
+                                this.headers = streamHeaders
+                                this.quality = Qualities.P1080.value
+                            }
+                        )
+                        foundAny = true
+                    }
+                } catch (e: Exception) { }
 
-                for ((idx, endpoint) in playerEndpoints.withIndex()) {
-                    try {
-                        val pHtml = app.get(endpoint, headers = liveHeaders, cacheTime = 0).text
-                        var pStream: String? = null
-                        for (pattern in m3u8Patterns) {
-                            pStream = pattern.find(pHtml)?.groupValues?.get(1)
-                            if (!pStream.isNullOrEmpty()) break
-                        }
-                        if (!pStream.isNullOrEmpty() && pStream != defaultStream) {
-                            callback.invoke(
-                                newExtractorLink(
-                                    source  = name,
-                                    name    = "$name - \u0420\u0435\u0437\u0435\u0440\u0432\u0435\u043d \u041f\u043e\u0442\u043e\u043a ${idx + 1}",
-                                    url     = pStream,
-                                    type    = ExtractorLinkType.M3U8
-                                ) {
-                                    this.referer = "$seirsandukUrl/"
-                                    this.headers = streamHeaders
-                                    this.quality = Qualities.P1080.value
-                                }
-                            )
-                            foundAny = true
-                        }
-                    } catch (e: Exception) { }
-                }
+                try {
+                    val p3Html = app.get("$seirsandukUrl/?player=13&id=$channelId&pass=", headers = liveHeaders).text
+                    val p3Stream = m3u8Regex.find(p3Html)?.groupValues?.get(1)
+                    if (!p3Stream.isNullOrEmpty() && p3Stream != defaultStream) {
+                        callback.invoke(
+                            newExtractorLink(
+                                source  = name,
+                                name    = "$name - \u0420\u0435\u0437\u0435\u0440\u0432\u0435\u043d \u041f\u043e\u0442\u043e\u043a 2",
+                                url     = p3Stream,
+                                type    = ExtractorLinkType.M3U8
+                            ) {
+                                this.referer = "$seirsandukUrl/"
+                                this.headers = streamHeaders
+                                this.quality = Qualities.P1080.value
+                            }
+                        )
+                        foundAny = true
+                    }
+                } catch (e: Exception) { }
             }
         } catch (e: Exception) { }
 
@@ -880,9 +819,8 @@ class BGFLIXProvider : MainAPI() {
     }
 
     /**
-     * FIX #1: Multi-source fallback chain for HD movie/series streaming.
-     * Tries VaPlayer -> VidSrc -> Vidsrc.to -> 2embed -> SuperEmbed
-     * This ensures that even if one source is down, others will provide the stream.
+     * Resolves VaPlayer master.m3u8 into direct variant playlists using M3u8Helper.
+     * This avoids ExoPlayer relative path resolution errors (ERROR_CODE_IO_BAD_HTTP_STATUS 2004) during seeking.
      */
     private suspend fun loadHDLinks(
         data: String,
@@ -896,14 +834,13 @@ class BGFLIXProvider : MainAPI() {
 
         val parts = data.split("|")
         val type = if (data.contains("series")) "series" else "movie"
-        val tmdbId = parts.getOrNull(1)?.toIntOrNull() ?: 0
         val season = parts.getOrNull(3)?.toIntOrNull()
         val episode = parts.getOrNull(4)?.toIntOrNull()
 
-        // 1. Fetch authentic Bulgarian subtitles (from multiple sources)
+        // 1. Fetch authentic Bulgarian subtitles
         fetchBulgarianSubtitles(imdbId, season, episode, subtitleCallback)
 
-        // 2. SOURCE #1: VaPlayer Direct 1080p HLS Streams (original)
+        // 2. VaPlayer Direct 1080p HLS Streams
         val vaHeaders = mapOf(
             "User-Agent" to "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
             "Referer" to "https://nextgencloudfabric.com/"
@@ -915,7 +852,7 @@ class BGFLIXProvider : MainAPI() {
             } else {
                 "https://streamdata.vaplayer.ru/api.php?imdb=$imdbId&type=movie"
             }
-            val vaResp = app.get(vaUrl, headers = vaHeaders, timeout = 10, cacheTime = 0).text
+            val vaResp = app.get(vaUrl, headers = vaHeaders, timeout = 10).text
 
             val vaJson = JSONObject(vaResp)
             val dataObj = vaJson.optJSONObject("data")
@@ -928,6 +865,7 @@ class BGFLIXProvider : MainAPI() {
                         val serverNum = i + 1
 
                         // Use M3u8Helper to resolve variant playlists to absolute URLs
+                        // which enables smooth seeking without 2004 bad HTTP status error
                         var m3u8Success = false
                         try {
                             val resolvedLinks = M3u8Helper.generateM3u8(
@@ -967,178 +905,6 @@ class BGFLIXProvider : MainAPI() {
             }
         } catch (e: Exception) { }
 
-        // 3. SOURCE #2: VidSrc.pro embed (strong fallback with multi-server)
-        try {
-            val vidsrcUrl = if (type == "series" && season != null && episode != null) {
-                "https://vidsrc.pro/embed/tv/$imdbId/$season/$episode"
-            } else {
-                "https://vidsrc.pro/embed/movie/$imdbId"
-            }
-            val vidsrcHeaders = mapOf(
-                "User-Agent" to "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
-                "Referer" to "https://vidsrc.pro/"
-            )
-            val vidsrcHtml = app.get(vidsrcUrl, headers = vidsrcHeaders, timeout = 12, cacheTime = 0).text
-
-            // Extract m3u8 streams from vidsrc response
-            val m3u8Pattern = Regex("""(https?://[^\s"'<>]+\.m3u8[^\s"'<>]*)""")
-            val m3u8Matches = m3u8Pattern.findAll(vidsrcHtml)
-            for ((idx, match) in m3u8Matches.withIndex()) {
-                val streamUrl = match.groupValues[1]
-                if (streamUrl.isNotBlank()) {
-                    callback.invoke(
-                        newExtractorLink(
-                            source = name,
-                            name = "$name - HD \u041f\u043e\u0442\u043e\u043a (VidSrc ${idx + 1})",
-                            url = streamUrl,
-                            type = ExtractorLinkType.M3U8
-                        ) {
-                            this.referer = "https://vidsrc.pro/"
-                            this.quality = Qualities.P1080.value
-                        }
-                    )
-                    foundAny = true
-                }
-            }
-
-            // Also try iframe extraction from vidsrc
-            val iframePattern = Regex("""<iframe[^>]+src=["']([^"']+)["']""")
-            val iframeMatches = iframePattern.findAll(vidsrcHtml)
-            for (iframeMatch in iframeMatches) {
-                var iframeSrc = iframeMatch.groupValues[1].trim()
-                if (iframeSrc.startsWith("//")) iframeSrc = "https:$iframeSrc"
-                if (iframeSrc.isNotBlank() && !iframeSrc.contains("youtube") && !iframeSrc.contains("google")) {
-                    try {
-                        loadExtractor(iframeSrc, "https://vidsrc.pro/", subtitleCallback, callback)
-                        foundAny = true
-                    } catch (e: Exception) { }
-                }
-            }
-        } catch (e: Exception) { }
-
-        // 4. SOURCE #3: VidSrc.cc (another mirror)
-        try {
-            val vidsrcCcUrl = if (type == "series" && season != null && episode != null) {
-                "https://vidsrc.cc/v2/embed/tv/$imdbId/$season/$episode"
-            } else {
-                "https://vidsrc.cc/v2/embed/movie/$imdbId"
-            }
-            val ccHeaders = mapOf(
-                "User-Agent" to "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
-                "Referer" to "https://vidsrc.cc/"
-            )
-            val ccHtml = app.get(vidsrcCcUrl, headers = ccHeaders, timeout = 12, cacheTime = 0).text
-            val ccM3u8 = Regex("""(https?://[^\s"'<>]+\.m3u8[^\s"'<>]*)""").findAll(ccHtml)
-            for ((idx, match) in ccM3u8.withIndex()) {
-                callback.invoke(
-                    newExtractorLink(
-                        source = name,
-                        name = "$name - HD \u041f\u043e\u0442\u043e\u043a (Mirror ${idx + 1})",
-                        url = match.groupValues[1],
-                        type = ExtractorLinkType.M3U8
-                    ) {
-                        this.referer = "https://vidsrc.cc/"
-                        this.quality = Qualities.P1080.value
-                    }
-                )
-                foundAny = true
-            }
-
-            // Iframe extraction
-            Regex("""<iframe[^>]+src=["']([^"']+)["']""").findAll(ccHtml).forEach { iframeMatch ->
-                var src = iframeMatch.groupValues[1].trim()
-                if (src.startsWith("//")) src = "https:$src"
-                if (src.isNotBlank() && !src.contains("youtube") && !src.contains("google")) {
-                    try {
-                        loadExtractor(src, "https://vidsrc.cc/", subtitleCallback, callback)
-                        foundAny = true
-                    } catch (e: Exception) { }
-                }
-            }
-        } catch (e: Exception) { }
-
-        // 5. SOURCE #4: 2embed.skin (additional provider)
-        try {
-            val embedUrl = if (type == "series" && season != null && episode != null) {
-                "https://2embed.skin/embed/tv/$imdbId/$season/$episode"
-            } else {
-                "https://2embed.skin/embed/$imdbId"
-            }
-            val embedHeaders = mapOf(
-                "User-Agent" to "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
-                "Referer" to "https://2embed.skin/"
-            )
-            val embedHtml = app.get(embedUrl, headers = embedHeaders, timeout = 12, cacheTime = 0).text
-
-            // Extract all iframe sources and try extractors on them
-            Regex("""<iframe[^>]+src=["']([^"']+)["']""").findAll(embedHtml).forEach { match ->
-                var src = match.groupValues[1].trim()
-                if (src.startsWith("//")) src = "https:$src"
-                if (src.isNotBlank() && !src.contains("youtube") && !src.contains("google")) {
-                    try {
-                        loadExtractor(src, "https://2embed.skin/", subtitleCallback, callback)
-                        foundAny = true
-                    } catch (e: Exception) { }
-                }
-            }
-
-            // Direct m3u8 matches
-            Regex("""(https?://[^\s"'<>]+\.m3u8[^\s"'<>]*)""").findAll(embedHtml).forEach { match ->
-                callback.invoke(
-                    newExtractorLink(
-                        source = name,
-                        name = "$name - HD \u041f\u043e\u0442\u043e\u043a (2Embed)",
-                        url = match.groupValues[1],
-                        type = ExtractorLinkType.M3U8
-                    ) {
-                        this.referer = "https://2embed.skin/"
-                        this.quality = Qualities.P1080.value
-                    }
-                )
-                foundAny = true
-            }
-        } catch (e: Exception) { }
-
-        // 6. SOURCE #5: SuperEmbed (last resort fallback)
-        try {
-            val seUrl = if (type == "series" && season != null && episode != null) {
-                "https://multiembed.mov/?video_id=$imdbId&s=$season&e=$episode"
-            } else {
-                "https://multiembed.mov/?video_id=$imdbId"
-            }
-            val seHeaders = mapOf(
-                "User-Agent" to "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
-                "Referer" to "https://multiembed.mov/"
-            )
-            val seHtml = app.get(seUrl, headers = seHeaders, timeout = 12, cacheTime = 0).text
-
-            Regex("""<iframe[^>]+src=["']([^"']+)["']""").findAll(seHtml).forEach { match ->
-                var src = match.groupValues[1].trim()
-                if (src.startsWith("//")) src = "https:$src"
-                if (src.isNotBlank() && !src.contains("youtube") && !src.contains("google")) {
-                    try {
-                        loadExtractor(src, "https://multiembed.mov/", subtitleCallback, callback)
-                        foundAny = true
-                    } catch (e: Exception) { }
-                }
-            }
-
-            Regex("""(https?://[^\s"'<>]+\.m3u8[^\s"'<>]*)""").findAll(seHtml).forEach { match ->
-                callback.invoke(
-                    newExtractorLink(
-                        source = name,
-                        name = "$name - HD \u041f\u043e\u0442\u043e\u043a (SuperEmbed)",
-                        url = match.groupValues[1],
-                        type = ExtractorLinkType.M3U8
-                    ) {
-                        this.referer = "https://multiembed.mov/"
-                        this.quality = Qualities.P1080.value
-                    }
-                )
-                foundAny = true
-            }
-        } catch (e: Exception) { }
-
         return foundAny
     }
 
@@ -1154,37 +920,20 @@ class BGFLIXProvider : MainAPI() {
 
         if (filmifenUrl2.isBlank()) return false
 
-        // First try HD sources via IMDB ID (multi-source chain)
         if (imdbId.isNotBlank()) {
             val hdFound = loadHDLinks(imdbId, subtitleCallback, callback)
             if (hdFound) foundAny = true
         }
 
-        // Then also scrape filmifen page for embedded players
         try {
-            val html = app.get(filmifenUrl2, headers = movieHeaders, cacheTime = 0).text
+            val html = app.get(filmifenUrl2, headers = movieHeaders).text
+            val playerDictRegex = Regex("""(?s)(?:const|var|let)?\s*[a-zA-Z0-9_]*\s*=\s*\{([^}]+(?:trailer|vdn|okr|voe|fmo)[^}]+)\}""")
+            val dictMatch = playerDictRegex.find(html)
 
-            // FIX #1: Enhanced regex patterns for filmifen player dictionary extraction
-            // Handles multiple naming conventions used by filmifen's embed system
-            val playerDictPatterns = listOf(
-                Regex("""(?s)(?:const|var|let)?\s*[a-zA-Z0-9_]*\s*=\s*\{([^}]+(?:trailer|vdn|okr|voe|fmo)[^}]+)\}"""),
-                Regex("""(?s)(?:const|var|let)?\s*[a-zA-Z0-9_]*\s*=\s*\{([^}]+(?:player|stream|video|embed|iframe)[^}]+)\}"""),
-                Regex("""(?s)pljson\s*=\s*\{([^}]+)\}"""),
-                Regex("""(?s)var\s+pl\s*=\s*\{([^}]+)\}""")
-            )
-
-            var dictBlock: String? = null
-            for (pattern in playerDictPatterns) {
-                val match = pattern.find(html)
-                if (match != null) {
-                    dictBlock = match.groupValues[1]
-                    break
-                }
-            }
-
-            if (dictBlock != null) {
+            if (dictMatch != null) {
+                val block = dictMatch.groupValues[1]
                 val urlPattern = Regex("""([a-zA-Z0-9_]+)\s*:\s*["']([^"']+)["']""")
-                val matches = urlPattern.findAll(dictBlock)
+                val matches = urlPattern.findAll(block)
 
                 for (m in matches) {
                     val key = m.groupValues[1]
@@ -1192,32 +941,25 @@ class BGFLIXProvider : MainAPI() {
 
                     if (targetUrl.isEmpty() || key == "trailer") continue
                     if (targetUrl.startsWith("//")) targetUrl = "https:$targetUrl"
-                    if (!targetUrl.startsWith("http")) continue
 
                     if (targetUrl.contains("ok.ru")) {
-                        try {
-                            loadExtractor(targetUrl.replace("videoembed", "video"), filmifenUrl, subtitleCallback, callback)
-                            foundAny = true
-                        } catch (e: Exception) { }
+                        loadExtractor(targetUrl.replace("videoembed", "video"), filmifenUrl, subtitleCallback, callback)
+                        foundAny = true
                     } else if (targetUrl.contains("voe.sx") || targetUrl.contains("voe.")) {
+                        loadExtractor(targetUrl, filmifenUrl, subtitleCallback, callback)
+                        foundAny = true
+                    } else if (targetUrl.contains("filemoon") || targetUrl.contains("bysesukior.com")) {
+                        loadExtractor(targetUrl, filmifenUrl, subtitleCallback, callback)
+                        foundAny = true
+                    } else if (targetUrl.contains("vidon.to")) {
                         try {
-                            loadExtractor(targetUrl, filmifenUrl, subtitleCallback, callback)
-                            foundAny = true
-                        } catch (e: Exception) { }
-                    } else if (targetUrl.contains("filemoon") || targetUrl.contains("bysesukior.com") || targetUrl.contains("moonplayer")) {
-                        try {
-                            loadExtractor(targetUrl, filmifenUrl, subtitleCallback, callback)
-                            foundAny = true
-                        } catch (e: Exception) { }
-                    } else if (targetUrl.contains("vidon.to") || targetUrl.contains("vidplay") || targetUrl.contains("vidcloud")) {
-                        try {
-                            val vidonHtml = app.get(targetUrl, headers = mapOf("Referer" to "$filmifenUrl/"), cacheTime = 0).text
+                            val vidonHtml = app.get(targetUrl, headers = mapOf("Referer" to "$filmifenUrl/")).text
                             val m3u8Match = Regex("""https?://[^\s"'<>]+\.m3u8[^\s"'<>]*""").find(vidonHtml)
                             if (m3u8Match != null) {
                                 callback.invoke(
                                     newExtractorLink(
                                         source = name,
-                                        name = "$name - \u0411\u0413 \u0410\u0443\u0434\u0438\u043e (Vidon)",
+                                        name = "$name - BG \u0410\u0443\u0434\u0438\u043e (Vidon)",
                                         url = m3u8Match.value,
                                         type = ExtractorLinkType.M3U8
                                     ) {
@@ -1226,77 +968,21 @@ class BGFLIXProvider : MainAPI() {
                                     }
                                 )
                                 foundAny = true
-                            } else {
-                                // Try extractor as fallback
-                                loadExtractor(targetUrl, filmifenUrl, subtitleCallback, callback)
-                                foundAny = true
                             }
                         } catch (e: Exception) { }
-                    } else if (targetUrl.contains("dood") || targetUrl.contains("streamtape") || targetUrl.contains("mixdrop")) {
-                        try {
-                            loadExtractor(targetUrl, filmifenUrl, subtitleCallback, callback)
-                            foundAny = true
-                        } catch (e: Exception) { }
                     } else {
-                        try {
-                            loadExtractor(targetUrl, filmifenUrl, subtitleCallback, callback)
-                            foundAny = true
-                        } catch (e: Exception) { }
+                        loadExtractor(targetUrl, filmifenUrl, subtitleCallback, callback)
+                        foundAny = true
                     }
                 }
             }
 
-            // FIX #1: Enhanced iframe extraction - also handle data-src and data-lazy-src
             val doc = Jsoup.parse(html)
-            doc.select("iframe[src], iframe[data-src], iframe[data-lazy-src]").forEach { iframe ->
+            doc.select("iframe[src]").forEach { iframe ->
                 var src = iframe.attr("src").trim()
-                if (src.isBlank() || src.startsWith("data:")) src = iframe.attr("data-src").trim()
-                if (src.isBlank() || src.startsWith("data:")) src = iframe.attr("data-lazy-src").trim()
                 if (src.startsWith("//")) src = "https:$src"
-                if (src.isNotBlank() && src.startsWith("http") && !src.contains("youtube") && !src.contains("google")) {
-                    try {
-                        loadExtractor(src, filmifenUrl, subtitleCallback, callback)
-                        foundAny = true
-                    } catch (e: Exception) { }
-                }
-            }
-
-            // FIX #1: Also try extracting video/source tags directly
-            doc.select("video source[src], video[src]").forEach { videoEl ->
-                var src = videoEl.attr("src").trim()
-                if (src.startsWith("//")) src = "https:$src"
-                if (src.isNotBlank() && src.startsWith("http")) {
-                    val linkType = if (src.contains(".m3u8")) ExtractorLinkType.M3U8 else ExtractorLinkType.VIDEO
-                    callback.invoke(
-                        newExtractorLink(
-                            source = name,
-                            name = "$name - \u0411\u0413 \u0410\u0443\u0434\u0438\u043e (Direct)",
-                            url = src,
-                            type = linkType
-                        ) {
-                            this.referer = filmifenUrl2
-                            this.quality = Qualities.P720.value
-                        }
-                    )
-                    foundAny = true
-                }
-            }
-
-            // FIX #1: Extract any .mp4 direct download links from the page
-            Regex("""(https?://[^\s"'<>]+\.mp4[^\s"'<>]*)""").findAll(html).forEach { match ->
-                val mp4Url = match.groupValues[1]
-                if (!mp4Url.contains("trailer") && !mp4Url.contains("preview")) {
-                    callback.invoke(
-                        newExtractorLink(
-                            source = name,
-                            name = "$name - \u0411\u0413 \u0410\u0443\u0434\u0438\u043e (MP4)",
-                            url = mp4Url,
-                            type = ExtractorLinkType.VIDEO
-                        ) {
-                            this.referer = filmifenUrl2
-                            this.quality = Qualities.P720.value
-                        }
-                    )
+                if (src.isNotEmpty() && !src.contains("youtube") && !src.contains("google")) {
+                    loadExtractor(src, filmifenUrl, subtitleCallback, callback)
                     foundAny = true
                 }
             }
@@ -1305,3 +991,4 @@ class BGFLIXProvider : MainAPI() {
         return foundAny
     }
 }
+
