@@ -905,6 +905,81 @@ class BGFLIXProvider : MainAPI() {
             }
         } catch (e: Exception) { }
 
+        // 3. Fallback: Torrentio High-Quality Streams (Ensures movies like Das Experiment & classics always play)
+        try {
+            val torrentioUrl = if (type == "series" && season != null && episode != null) {
+                "https://torrentio.strem.fun/stream/series/$imdbId:$season:$episode.json"
+            } else {
+                "https://torrentio.strem.fun/stream/movie/$imdbId.json"
+            }
+            val tResp = app.get(torrentioUrl, timeout = 8).text
+            val tJson = JSONObject(tResp)
+            val tStreams = tJson.optJSONArray("streams")
+            if (tStreams != null && tStreams.length() > 0) {
+                val maxCount = minOf(tStreams.length(), 6)
+                for (i in 0 until maxCount) {
+                    val streamObj = tStreams.optJSONObject(i) ?: continue
+                    val infoHash = streamObj.optString("infoHash", "").trim()
+                    if (infoHash.isBlank()) continue
+
+                    val streamName = streamObj.optString("name", "Torrentio").replace("\n", " ").trim()
+                    val title = streamObj.optString("title", "").replace("\n", " ").trim()
+                    val fileIdx = streamObj.optInt("fileIdx", -1)
+
+                    val magnetUri = buildString {
+                        append("magnet:?xt=urn:btih:").append(infoHash)
+                        if (title.isNotBlank()) {
+                            append("&dn=").append(URLEncoder.encode(title, "UTF-8"))
+                        }
+                        if (fileIdx >= 0) {
+                            append("&so=").append(fileIdx)
+                        }
+                        val sources = streamObj.optJSONArray("sources")
+                        if (sources != null) {
+                            for (s in 0 until sources.length()) {
+                                val src = sources.optString(s, "")
+                                if (src.startsWith("tracker:")) {
+                                    val tr = src.removePrefix("tracker:")
+                                    if (tr.isNotBlank()) {
+                                        append("&tr=").append(URLEncoder.encode(tr, "UTF-8"))
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    val quality = when {
+                        streamName.contains("4k", ignoreCase = true) || title.contains("4k", ignoreCase = true) || title.contains("2160p", ignoreCase = true) -> Qualities.P2160.value
+                        streamName.contains("1080p", ignoreCase = true) || title.contains("1080p", ignoreCase = true) -> Qualities.P1080.value
+                        streamName.contains("720p", ignoreCase = true) || title.contains("720p", ignoreCase = true) -> Qualities.P720.value
+                        else -> Qualities.Unknown.value
+                    }
+
+                    val serverLabel = if (title.contains("YTS", ignoreCase = true)) {
+                        "YTS"
+                    } else if (title.contains("Rutracker", ignoreCase = true)) {
+                        "Rutracker"
+                    } else if (title.contains("1337x", ignoreCase = true)) {
+                        "1337x"
+                    } else {
+                        "HD Server ${i + 1}"
+                    }
+
+                    callback.invoke(
+                        newExtractorLink(
+                            source = name,
+                            name = "$name - $streamName ($serverLabel)",
+                            url = magnetUri,
+                            type = ExtractorLinkType.MAGNET
+                        ) {
+                            this.quality = quality
+                        }
+                    )
+                    foundAny = true
+                }
+            }
+        } catch (e: Exception) { }
+
         return foundAny
     }
 
@@ -991,4 +1066,5 @@ class BGFLIXProvider : MainAPI() {
         return foundAny
     }
 }
+
 
