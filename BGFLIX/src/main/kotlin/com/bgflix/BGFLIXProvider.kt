@@ -24,6 +24,16 @@ class BGFLIXProvider : MainAPI() {
         "live_sports" to "\u041d\u0430 \u0436\u0438\u0432\u043e: \u0421\u043f\u043e\u0440\u0442",
         "live_movies" to "\u041d\u0430 \u0436\u0438\u0432\u043e: \u0424\u0438\u043b\u043c\u0438 & \u0421\u0435\u0440\u0438\u0430\u043b\u0438",
         "live_kids" to "\u041d\u0430 \u0436\u0438\u0432\u043e: \u0414\u0435\u0442\u0441\u043a\u0438",
+        "stream_nfx_movie" to "\ud83d\udd34 Netflix: \u041f\u043e\u043f\u0443\u043b\u044f\u0440\u043d\u0438 & \u041d\u043e\u0432\u0438 \u0424\u0438\u043b\u043c\u0438",
+        "stream_nfx_series" to "\ud83d\udd34 Netflix: \u041f\u043e\u043f\u0443\u043b\u044f\u0440\u043d\u0438 & \u041d\u043e\u0432\u0438 \u0421\u0435\u0440\u0438\u0430\u043b\u0438",
+        "stream_amp_movie" to "\ud83d\udd35 Prime Video: \u041f\u043e\u043f\u0443\u043b\u044f\u0440\u043d\u0438 & \u041d\u043e\u0432\u0438 \u0424\u0438\u043b\u043c\u0438",
+        "stream_amp_series" to "\ud83d\udd35 Prime Video: \u041f\u043e\u043f\u0443\u043b\u044f\u0440\u043d\u0438 & \u041d\u043e\u0432\u0438 \u0421\u0435\u0440\u0438\u0430\u043b\u0438",
+        "stream_dnp_movie" to "\ud83c\udff0 Disney+: \u041f\u043e\u043f\u0443\u043b\u044f\u0440\u043d\u0438 & \u041d\u043e\u0432\u0438 \u0424\u0438\u043b\u043c\u0438",
+        "stream_dnp_series" to "\ud83c\udff0 Disney+: \u041f\u043e\u043f\u0443\u043b\u044f\u0440\u043d\u0438 & \u041d\u043e\u0432\u0438 \u0421\u0435\u0440\u0438\u0430\u043b\u0438",
+        "stream_hbm_movie" to "\ud83d\udfe3 HBO Max: \u041f\u043e\u043f\u0443\u043b\u044f\u0440\u043d\u0438 & \u041d\u043e\u0432\u0438 \u0424\u0438\u043b\u043c\u0438",
+        "stream_hbm_series" to "\ud83d\udfe3 HBO Max: \u041f\u043e\u043f\u0443\u043b\u044f\u0440\u043d\u0438 & \u041d\u043e\u0432\u0438 \u0421\u0435\u0440\u0438\u0430\u043b\u0438",
+        "stream_atp_series" to "\ud83c\udf4f Apple TV+: \u0418\u0437\u0431\u0440\u0430\u043d\u0438 \u0421\u0435\u0440\u0438\u0430\u043b\u0438 & \u0424\u0438\u043b\u043c\u0438",
+        "filmifen_bg" to "\u041d\u043e\u0432\u0438 \u0424\u0438\u043b\u043c\u0438 \u0441 \u0411\u0413 \u0410\u0443\u0434\u0438\u043e",
         "cinemeta_movie_top" to "\u0422\u043e\u043f \u041f\u043e\u043f\u0443\u043b\u044f\u0440\u043d\u0438 \u0424\u0438\u043b\u043c\u0438 (HD)",
         "cinemeta_movie_Action" to "\u0422\u043e\u043f \u0410\u043a\u0448\u044a\u043d (HD)",
         "cinemeta_movie_Comedy" to "\u0422\u043e\u043f \u041a\u043e\u043c\u0435\u0434\u0438\u044f (HD)",
@@ -34,12 +44,12 @@ class BGFLIXProvider : MainAPI() {
         "cinemeta_movie_Animation" to "\u0422\u043e\u043f \u0410\u043d\u0438\u043c\u0430\u0446\u0438\u044f (HD)",
         "cinemeta_series_top" to "\u0422\u043e\u043f \u041f\u043e\u043f\u0443\u043b\u044f\u0440\u043d\u0438 \u0421\u0435\u0440\u0438\u0430\u043b\u0438 (HD)",
         "cinemeta_series_Drama" to "\u0422\u043e\u043f \u0421\u0435\u0440\u0438\u0430\u043b\u0438: \u0414\u0440\u0430\u043c\u0430 (HD)",
-        "cinemeta_series_Comedy" to "\u0422\u043e\u043f \u0421\u0435\u0440\u0438\u0430\u043b\u0438: \u041a\u043e\u043c\u0435\u0434\u0438\u044f (HD)",
-        "filmifen_bg" to "\u041d\u043e\u0432\u0438 \u0424\u0438\u043b\u043c\u0438 \u0441 \u0411\u0413 \u0410\u0443\u0434\u0438\u043e"
+        "cinemeta_series_Comedy" to "\u0422\u043e\u043f \u0421\u0435\u0440\u0438\u0430\u043b\u0438: \u041a\u043e\u043c\u0435\u0434\u0438\u044f (HD)"
     )
 
     private val defaultPoster = "https://raw.githubusercontent.com/Bushidotv/BGFLIX/master/icon.png"
     private val rawLogoBase = "https://raw.githubusercontent.com/Bushidotv/BGFLIX/master/logos_hd"
+    private val streamingAddonBase = "https://7a82163c306e-stremio-netflix-catalog-addon.baby-beamup.club"
 
     private val commonHeaders = mapOf(
         "User-Agent" to "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
@@ -184,6 +194,8 @@ class BGFLIXProvider : MainAPI() {
     override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse {
         if (request.data.startsWith("live_")) {
             return getLiveChannelsPage(request)
+        } else if (request.data.startsWith("stream_")) {
+            return getStreamingPlatformPage(page, request)
         } else if (request.data.startsWith("cinemeta_")) {
             return getCinemetaPage(page, request)
         } else if (request.data == "filmifen_bg") {
@@ -191,6 +203,70 @@ class BGFLIXProvider : MainAPI() {
         }
 
         return newHomePageResponse(HomePageList(request.name, emptyList()), hasNext = false)
+    }
+
+    private suspend fun getStreamingPlatformPage(page: Int, request: MainPageRequest): HomePageResponse {
+        val parts = request.data.removePrefix("stream_").split("_")
+        val providerId = parts.getOrElse(0) { "nfx" }
+        val type = parts.getOrElse(1) { "movie" }
+
+        val catalogUrl = "$streamingAddonBase/catalog/$type/$providerId.json"
+        val items = mutableListOf<SearchResponse>()
+
+        try {
+            val response = app.get(catalogUrl, headers = commonHeaders, timeout = 12).text
+            val json = JSONObject(response)
+            val metas = json.optJSONArray("metas") ?: JSONArray()
+
+            val pageSize = 25
+            val startIndex = if (page <= 1) 0 else (page - 1) * pageSize
+            val endIndex = minOf(startIndex + pageSize, metas.length())
+
+            if (startIndex < metas.length()) {
+                for (i in startIndex until endIndex) {
+                    val meta = metas.optJSONObject(i) ?: continue
+                    val imdbId = meta.optString("id", "").ifBlank { meta.optString("imdb_id", "") }.trim()
+                    val name = meta.optString("name", "").trim()
+                    val poster = meta.optString("poster", "").trim()
+                    val yearStr = (meta.optString("releaseInfo", "").ifBlank { meta.optString("year", "") }).trim()
+                    val year = yearStr.take(4).toIntOrNull()
+                    val imdbRating = meta.optString("imdbRating", "").trim()
+
+                    if (name.isEmpty() || imdbId.isEmpty()) continue
+
+                    val detailUrl = "$mainUrl/meta/$type/$imdbId.json"
+                    val displayName = if (imdbRating.isNotBlank()) "$name ⭐$imdbRating" else name
+
+                    if (type == "series") {
+                        items.add(
+                            newTvSeriesSearchResponse(displayName, detailUrl, TvType.TvSeries) {
+                                this.posterUrl = poster.ifBlank { null }
+                                this.year = year
+                                this.quality = SearchQuality.HD
+                            }
+                        )
+                    } else {
+                        items.add(
+                            newMovieSearchResponse(displayName, detailUrl, TvType.Movie) {
+                                this.posterUrl = poster.ifBlank { null }
+                                this.year = year
+                                this.quality = SearchQuality.HD
+                            }
+                        )
+                    }
+                }
+            }
+
+            return newHomePageResponse(
+                HomePageList(request.name, items),
+                hasNext = endIndex < metas.length()
+            )
+        } catch (e: Exception) {
+            return newHomePageResponse(
+                HomePageList(request.name, emptyList()),
+                hasNext = false
+            )
+        }
     }
 
     private suspend fun getLiveChannelsPage(request: MainPageRequest): HomePageResponse {
