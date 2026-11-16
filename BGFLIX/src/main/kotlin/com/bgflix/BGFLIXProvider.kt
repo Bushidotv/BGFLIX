@@ -893,10 +893,11 @@ class BGFLIXProvider : MainAPI() {
 
         return foundAny
     }
-
     /**
-     * Resolves VaPlayer master.m3u8 into direct variant playlists using M3u8Helper.
-     * This avoids ExoPlayer relative path resolution errors (ERROR_CODE_IO_BAD_HTTP_STATUS 2004) during seeking.
+     * Direct HLS streaming - zero torrents, instant playback.
+     * Source 1: VixSrc (covers ~95% of titles, 1080p/720p HLS)
+     * Source 2: VidSrc.me (fallback for titles VixSrc doesn't have)
+     * All streams are direct HTTP/HLS - no magnet links, no Torrest needed.
      */
     private suspend fun loadHDLinks(
         data: String,
@@ -916,10 +917,10 @@ class BGFLIXProvider : MainAPI() {
         // 1. Fetch authentic Bulgarian subtitles
         fetchBulgarianSubtitles(imdbId, season, episode, subtitleCallback)
 
-        // 2. VixSrc Direct High-Speed HLS Streams (1080p / 720p Direct Playback)
+        // 2. VixSrc Direct High-Speed HLS Streams (Primary Source)
         try {
             val vixHeaders = mapOf(
-                "User-Agent" to "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+                "User-Agent" to "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
                 "Referer" to "https://vixsrc.to/"
             )
             val vixApiUrl = if (type == "series" && season != null && episode != null) {
@@ -942,180 +943,23 @@ class BGFLIXProvider : MainAPI() {
                 if (!tokenMatch.isNullOrBlank() && !expiresMatch.isNullOrBlank() && !urlMatch.isNullOrBlank()) {
                     val m3u8Url = "$urlMatch.m3u8?token=$tokenMatch&expires=$expiresMatch&h=1"
                     val streamHeaders = mapOf(
-                        "User-Agent" to "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+                        "User-Agent" to "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
                         "Referer" to embedUrl
                     )
 
-                    var m3u8Ok = false
-                    try {
-                        val resolved = M3u8Helper.generateM3u8(
-                            source = name,
-                            streamUrl = m3u8Url,
-                            referer = embedUrl,
-                            headers = streamHeaders,
-                            name = "$name - 1080p Ultra HD"
-                        )
-                        if (resolved.isNotEmpty()) {
-                            resolved.forEach { link ->
-                                callback.invoke(link)
-                                foundAny = true
-                            }
-                            m3u8Ok = true
-                        }
-                    } catch (e: Exception) { }
-
-                    if (!m3u8Ok) {
-                        callback.invoke(
-                            newExtractorLink(
-                                source = name,
-                                name = "$name - 1080p Ultra HD (Direct)",
-                                url = m3u8Url,
-                                type = ExtractorLinkType.M3U8
-                            ) {
-                                this.referer = embedUrl
-                                this.headers = streamHeaders
-                                this.quality = Qualities.P1080.value
-                            }
-                        )
-                        foundAny = true
-                    }
-                }
-            }
-        } catch (e: Exception) { }
-
-        // 3. VaPlayer Direct 1080p HLS Streams
-        val vaHeaders = mapOf(
-            "User-Agent" to "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-            "Referer" to "https://nextgencloudfabric.com/"
-        )
-
-        try {
-            val vaUrl = if (type == "series" && season != null && episode != null) {
-                "https://streamdata.vaplayer.ru/api.php?imdb=$imdbId&type=tv&season=$season&episode=$episode"
-            } else {
-                "https://streamdata.vaplayer.ru/api.php?imdb=$imdbId&type=movie"
-            }
-            val vaResp = app.get(vaUrl, headers = vaHeaders, timeout = 10).text
-
-            val vaJson = JSONObject(vaResp)
-            val dataObj = vaJson.optJSONObject("data")
-            val streamUrls = dataObj?.optJSONArray("stream_urls")
-
-            if (streamUrls != null && streamUrls.length() > 0) {
-                for (i in 0 until streamUrls.length()) {
-                    val streamUrl = streamUrls.optString(i)
-                    if (streamUrl.isNotBlank()) {
-                        val serverNum = i + 1
-
-                        // Use M3u8Helper to resolve variant playlists to absolute URLs
-                        // which enables smooth seeking without 2004 bad HTTP status error
-                        var m3u8Success = false
-                        try {
-                            val resolvedLinks = M3u8Helper.generateM3u8(
-                                source = name,
-                                streamUrl = streamUrl,
-                                referer = "https://nextgencloudfabric.com/",
-                                headers = vaHeaders,
-                                name = "$name - 1080p HD (\u0421\u044a\u0440\u0432\u044a\u0440 $serverNum)"
-                            )
-                            if (resolvedLinks.isNotEmpty()) {
-                                resolvedLinks.forEach { link ->
-                                    callback.invoke(link)
-                                    foundAny = true
-                                }
-                                m3u8Success = true
-                            }
-                        } catch (e: Exception) { }
-
-                        // Fallback to direct link if M3u8Helper couldn't parse
-                        if (!m3u8Success) {
-                            callback.invoke(
-                                newExtractorLink(
-                                    source = name,
-                                    name = "$name - 1080p HD (\u0421\u044a\u0440\u0432\u044a\u0440 $serverNum)",
-                                    url = streamUrl,
-                                    type = ExtractorLinkType.M3U8
-                                ) {
-                                    this.referer = "https://nextgencloudfabric.com/"
-                                    this.headers = vaHeaders
-                                    this.quality = Qualities.P1080.value
-                                }
-                            )
-                            foundAny = true
-                        }
-                    }
-                }
-            }
-        } catch (e: Exception) { }
-
-        // 4. Fallback: Torrentio High-Quality Streams (Ensures movies like Das Experiment & classics always play)
-        try {
-            val torrentioUrl = if (type == "series" && season != null && episode != null) {
-                "https://torrentio.strem.fun/stream/series/$imdbId:$season:$episode.json"
-            } else {
-                "https://torrentio.strem.fun/stream/movie/$imdbId.json"
-            }
-            val tResp = app.get(torrentioUrl, timeout = 8).text
-            val tJson = JSONObject(tResp)
-            val tStreams = tJson.optJSONArray("streams")
-            if (tStreams != null && tStreams.length() > 0) {
-                val maxCount = minOf(tStreams.length(), 6)
-                for (i in 0 until maxCount) {
-                    val streamObj = tStreams.optJSONObject(i) ?: continue
-                    val infoHash = streamObj.optString("infoHash", "").trim()
-                    if (infoHash.isBlank()) continue
-
-                    val streamName = streamObj.optString("name", "Torrentio").replace("\n", " ").trim()
-                    val title = streamObj.optString("title", "").replace("\n", " ").trim()
-                    val fileIdx = streamObj.optInt("fileIdx", -1)
-
-                    val magnetUri = buildString {
-                        append("magnet:?xt=urn:btih:").append(infoHash)
-                        if (title.isNotBlank()) {
-                            append("&dn=").append(URLEncoder.encode(title, "UTF-8"))
-                        }
-                        if (fileIdx >= 0) {
-                            append("&so=").append(fileIdx)
-                        }
-                        val sources = streamObj.optJSONArray("sources")
-                        if (sources != null) {
-                            for (s in 0 until sources.length()) {
-                                val src = sources.optString(s, "")
-                                if (src.startsWith("tracker:")) {
-                                    val tr = src.removePrefix("tracker:")
-                                    if (tr.isNotBlank()) {
-                                        append("&tr=").append(URLEncoder.encode(tr, "UTF-8"))
-                                    }
-                                }
-                            }
-                        }
-                    }
-
-                    val quality = when {
-                        streamName.contains("4k", ignoreCase = true) || title.contains("4k", ignoreCase = true) || title.contains("2160p", ignoreCase = true) -> Qualities.P2160.value
-                        streamName.contains("1080p", ignoreCase = true) || title.contains("1080p", ignoreCase = true) -> Qualities.P1080.value
-                        streamName.contains("720p", ignoreCase = true) || title.contains("720p", ignoreCase = true) -> Qualities.P720.value
-                        else -> Qualities.Unknown.value
-                    }
-
-                    val serverLabel = if (title.contains("YTS", ignoreCase = true)) {
-                        "YTS"
-                    } else if (title.contains("Rutracker", ignoreCase = true)) {
-                        "Rutracker"
-                    } else if (title.contains("1337x", ignoreCase = true)) {
-                        "1337x"
-                    } else {
-                        "HD Server ${i + 1}"
-                    }
-
+                    // Pass master M3U8 directly - do NOT use M3u8Helper.generateM3u8
+                    // The master playlist points variants to vixsrc.to, so ExoPlayer
+                    // resolves the AES-128 key URI /storage/enc.key correctly
                     callback.invoke(
                         newExtractorLink(
                             source = name,
-                            name = "$name - $streamName ($serverLabel)",
-                            url = magnetUri,
-                            type = ExtractorLinkType.MAGNET
+                            name = "$name - 1080p Ultra HD",
+                            url = m3u8Url,
+                            type = ExtractorLinkType.M3U8
                         ) {
-                            this.quality = quality
+                            this.referer = embedUrl
+                            this.headers = streamHeaders
+                            this.quality = Qualities.P1080.value
                         }
                     )
                     foundAny = true
@@ -1123,8 +967,100 @@ class BGFLIXProvider : MainAPI() {
             }
         } catch (e: Exception) { }
 
+        // 3. VidSrc.me Fallback (for titles VixSrc doesn't have)
+        if (!foundAny) {
+            try {
+                val vsHeaders = mapOf(
+                    "User-Agent" to "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+                    "Referer" to "https://vidsrc.me/"
+                )
+                val vsType = if (type == "series") "tv" else "movie"
+                val vsApiUrl = if (type == "series" && season != null && episode != null) {
+                    "https://vidsrc.me/vs_src.php?type=$vsType&id=$imdbId&season=$season&episode=$episode"
+                } else {
+                    "https://vidsrc.me/vs_src.php?type=$vsType&id=$imdbId"
+                }
+                val vsResp = app.get(vsApiUrl, headers = vsHeaders, timeout = 8).text
+                val vsJson = JSONObject(vsResp)
+                val vsSrc = vsJson.optString("src", "")
+                if (vsSrc.isNotBlank()) {
+                    // vsSrc is an embed URL - try to extract streams from it
+                    try {
+                        val embedHeaders = mapOf(
+                            "User-Agent" to "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+                            "Referer" to "https://vidsrc.me/"
+                        )
+                        val embedHtml = app.get(vsSrc, headers = embedHeaders, timeout = 10).text
+
+                        // Try to find m3u8 URLs in the embed page
+                        val m3u8Pattern = Regex("""(https?://[^\s"'<>]+\.m3u8[^\s"'<>]*)""")
+                        val m3u8Matches = m3u8Pattern.findAll(embedHtml)
+                        for (m3u8Match in m3u8Matches) {
+                            val streamUrl = m3u8Match.groupValues[1]
+                            callback.invoke(
+                                newExtractorLink(
+                                    source = name,
+                                    name = "$name - HD Stream",
+                                    url = streamUrl,
+                                    type = ExtractorLinkType.M3U8
+                                ) {
+                                    this.referer = vsSrc
+                                    this.headers = embedHeaders
+                                    this.quality = Qualities.P720.value
+                                }
+                            )
+                            foundAny = true
+                        }
+
+                        // Also try loadExtractor for known hosts
+                        if (!foundAny) {
+                            val iframePattern = Regex("""<iframe[^>]+src=["']([^"']+)["']""")
+                            val iframeMatches = iframePattern.findAll(embedHtml)
+                            for (iframeMatch in iframeMatches) {
+                                var iframeSrc = iframeMatch.groupValues[1]
+                                if (iframeSrc.startsWith("//")) iframeSrc = "https:$iframeSrc"
+                                if (iframeSrc.isNotBlank() && iframeSrc.startsWith("http")) {
+                                    loadExtractor(iframeSrc, vsSrc, subtitleCallback, callback)
+                                    foundAny = true
+                                }
+                            }
+                        }
+                    } catch (e: Exception) { }
+                }
+            } catch (e: Exception) { }
+        }
+
+        // 4. 2embed.cc Fallback (wide catalog coverage)
+        if (!foundAny) {
+            try {
+                val embedHeaders = mapOf(
+                    "User-Agent" to "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+                    "Referer" to "https://www.2embed.cc/"
+                )
+                val embedUrl = if (type == "series" && season != null && episode != null) {
+                    "https://www.2embed.cc/embedtv/$imdbId&s=$season&e=$episode"
+                } else {
+                    "https://www.2embed.cc/embed/$imdbId"
+                }
+                val embedHtml = app.get(embedUrl, headers = embedHeaders, timeout = 8).text
+
+                // Extract iframe sources from 2embed
+                val iframePattern = Regex("""<iframe[^>]+src=["']([^"']+)["']""")
+                val iframeMatches = iframePattern.findAll(embedHtml)
+                for (iframeMatch in iframeMatches) {
+                    var iframeSrc = iframeMatch.groupValues[1]
+                    if (iframeSrc.startsWith("//")) iframeSrc = "https:$iframeSrc"
+                    if (iframeSrc.isNotBlank() && iframeSrc.startsWith("http") && !iframeSrc.contains("2embed.cc/embed")) {
+                        loadExtractor(iframeSrc, embedUrl, subtitleCallback, callback)
+                        foundAny = true
+                    }
+                }
+            } catch (e: Exception) { }
+        }
+
         return foundAny
     }
+
 
     private suspend fun loadFilmifenLinks(
         data: String,
