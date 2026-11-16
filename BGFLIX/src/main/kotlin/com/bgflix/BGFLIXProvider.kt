@@ -941,7 +941,7 @@ class BGFLIXProvider : MainAPI() {
                 val urlMatch = Regex("""url:\s*["']([^"']+)["']""").find(embedHtml)?.groupValues?.get(1)
 
                 if (!tokenMatch.isNullOrBlank() && !expiresMatch.isNullOrBlank() && !urlMatch.isNullOrBlank()) {
-                    val m3u8Url = "$urlMatch.m3u8?token=$tokenMatch&expires=$expiresMatch&h=1"
+                    val m3u8Url = "$urlMatch.m3u8?token=$tokenMatch&expires=$expiresMatch&h=1&lang=en"
                     val streamHeaders = mapOf(
                         "User-Agent" to "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
                         "Referer" to embedUrl
