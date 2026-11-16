@@ -955,7 +955,7 @@ class BGFLIXProvider : MainAPI() {
         } catch (e: Exception) { return false }
     }
 
-    private fun emitRecTvSources(sources: org.json.JSONArray, callback: (ExtractorLink) -> Unit): Boolean {
+    private suspend fun emitRecTvSources(sources: org.json.JSONArray, callback: (ExtractorLink) -> Unit): Boolean {
         var found = false
         for (i in 0 until sources.length()) {
             val src     = sources.optJSONObject(i) ?: continue
