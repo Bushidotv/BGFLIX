@@ -895,10 +895,98 @@ class BGFLIXProvider : MainAPI() {
     }
     /**
      * Direct HLS streaming - zero torrents, instant playback.
-     * Source 1: VixSrc (covers ~95% of titles, 1080p/720p HLS)
-     * Source 2: VidSrc.me (fallback for titles VixSrc doesn't have)
+     * Source 1: RecTV (primary - 1080p quality, IMDb-based lookup)
+     * Source 2: VixSrc (fallback - 1080p HLS when RecTV has no match)
      * All streams are direct HTTP/HLS - no magnet links, no Torrest needed.
      */
+    private val recTvBase    = "https://b.prectv38.sbs"
+    private val recTvKey     = "4F5A9C3D9A86FA54EACEDDD635185/c3c5bd17-e37b-4b94-a944-8a3688a30452"
+    private val recTvHdrs    = mapOf("User-Agent" to "okhttp/4.12.0")
+
+    private suspend fun loadRecTvLinks(
+        imdbId: String,
+        type: String,
+        season: Int?,
+        episode: Int?,
+        callback: (ExtractorLink) -> Unit
+    ): Boolean {
+        try {
+            val searchResp = app.get(
+                "$recTvBase/api/search/$imdbId/$recTvKey/",
+                headers = recTvHdrs,
+                timeout = 12
+            ).text
+            if (searchResp.isBlank() || searchResp.trim() == "null") return false
+
+            val searchJson  = org.json.JSONObject(searchResp)
+            val postersArr  = searchJson.optJSONArray("posters") ?: return false
+            if (postersArr.length() == 0) return false
+
+            val item   = postersArr.optJSONObject(0) ?: return false
+            val recId  = item.optInt("id", -1)
+            if (recId < 0) return false
+
+            val recType = item.optString("type", "movie")
+
+            if (recType == "serie" && season != null && episode != null) {
+                val seasonResp = app.get(
+                    "$recTvBase/api/season/by/serie/$recId/$recTvKey/",
+                    headers = recTvHdrs,
+                    timeout = 12
+                ).text
+                val seasons = org.json.JSONArray(seasonResp)
+                for (s in 0 until seasons.length()) {
+                    val seasonObj = seasons.optJSONObject(s) ?: continue
+                    val eps = seasonObj.optJSONArray("episodes") ?: continue
+                    for (e in 0 until eps.length()) {
+                        val ep    = eps.optJSONObject(e) ?: continue
+                        val epNum = Regex("""\d+""").find(ep.optString("title", ""))?.value?.toIntOrNull()
+                        if (epNum == episode) {
+                            val sources = ep.optJSONArray("sources") ?: continue
+                            return emitRecTvSources(sources, callback)
+                        }
+                    }
+                }
+                return false
+            } else {
+                val sources = item.optJSONArray("sources") ?: return false
+                return emitRecTvSources(sources, callback)
+            }
+        } catch (e: Exception) { return false }
+    }
+
+    private fun emitRecTvSources(sources: org.json.JSONArray, callback: (ExtractorLink) -> Unit): Boolean {
+        var found = false
+        for (i in 0 until sources.length()) {
+            val src     = sources.optJSONObject(i) ?: continue
+            val srcUrl  = src.optString("url", "")
+            val srcType = src.optString("type", "hls")
+            if (srcUrl.isBlank()) continue
+
+            val linkType = if (srcType == "mp4") ExtractorLinkType.VIDEO else ExtractorLinkType.M3U8
+            val quality  = when {
+                srcUrl.contains("1080") -> Qualities.P1080.value
+                srcUrl.contains("720")  -> Qualities.P720.value
+                else                    -> Qualities.P1080.value
+            }
+
+            callback.invoke(
+                newExtractorLink(
+                    source = name,
+                    name   = "$name - RecTV 1080p",
+                    url    = srcUrl,
+                    type   = linkType
+                ) {
+                    this.referer = "https://twitter.com/"
+                    this.headers = mapOf("User-Agent" to "googleusercontent")
+                    this.quality = quality
+                }
+            )
+            found = true
+        }
+        return found
+    }
+
     private suspend fun loadHDLinks(
         data: String,
         subtitleCallback: (SubtitleFile) -> Unit,
@@ -917,7 +1005,14 @@ class BGFLIXProvider : MainAPI() {
         // 1. Fetch authentic Bulgarian subtitles
         fetchBulgarianSubtitles(imdbId, season, episode, subtitleCallback)
 
-        // 2. VixSrc Direct High-Speed HLS Streams (Primary Source)
+        // 2. RecTV — Primary high-quality source (1080p streams via IMDb ID)
+        try {
+            val recFound = loadRecTvLinks(imdbId, type, season, episode, callback)
+            if (recFound) foundAny = true
+        } catch (e: Exception) { }
+
+        // 3. VixSrc Direct High-Speed HLS Streams (Fallback when RecTV has no match)
+        if (!foundAny) {
         try {
             val vixHeaders = mapOf(
                 "User-Agent" to "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
@@ -966,8 +1061,9 @@ class BGFLIXProvider : MainAPI() {
                 }
             }
         } catch (e: Exception) { }
+        } // end VixSrc fallback
 
-        // 3. VidSrc.me Fallback (for titles VixSrc doesn't have)
+        // 4. VidSrc.me (secondary fallback)
         if (!foundAny) {
             try {
                 val vsHeaders = mapOf(
@@ -1030,7 +1126,7 @@ class BGFLIXProvider : MainAPI() {
             } catch (e: Exception) { }
         }
 
-        // 4. 2embed.cc Fallback (wide catalog coverage)
+        // 5. 2embed.cc Fallback (wide catalog coverage)
         if (!foundAny) {
             try {
                 val embedHeaders = mapOf(
