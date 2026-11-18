@@ -201,8 +201,10 @@ async def validate_license(request: Request):
     # 3. HWID hiç kayıtlı değil -> 30 günlük Trial kaydı oluştur
     expire = now + timedelta(days=30)
     trial_key = generate_trial_key(hwid)
+    guest_email = f"trial_{hwid[:8].lower()}@bgflix.tv"
 
     record = {
+        "email": guest_email,
         "license_key": trial_key,
         "status": "active",
         "expire_date": expire.isoformat(),
@@ -217,6 +219,7 @@ async def validate_license(request: Request):
         # is_trial veya created_at sütunu tabloda yoksa sade kayıt dene
         try:
             minimal = {
+                "email": guest_email,
                 "license_key": trial_key,
                 "status": "active",
                 "expire_date": expire.isoformat(),
