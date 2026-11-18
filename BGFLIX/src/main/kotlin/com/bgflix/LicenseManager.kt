@@ -14,6 +14,7 @@ import java.security.MessageDigest
  *
  * - Stores the license key in SharedPreferences
  * - Generates a unique device HWID from Android ID (SHA-256 hashed)
+ * - Auto-assigns 30-day trial for new devices without a key
  * - Validates license before any content is served
  * - Caches validation result for 5 minutes to avoid excessive API calls
  */
@@ -25,7 +26,7 @@ object LicenseManager {
     private const val KEY_CACHED_TIME = "cached_time"
     private const val CACHE_DURATION_MS = 5 * 60 * 1000L // 5 minutes
 
-    private const val VERIFY_URL = "https://lisans-api-six.vercel.app/validate_license"
+    private const val VERIFY_URL = "https://bgflix-license.vercel.app/validate_license"
 
     private var appContext: Context? = null
 
@@ -94,20 +95,18 @@ object LicenseManager {
      * Validates the license against the API.
      * Returns true if license is valid, false otherwise.
      * Uses a 5-minute cache to avoid spamming the API.
+     * If license key is blank, hits the API with HWID to get/check 30-day trial.
      *
      * @throws RuntimeException with user-friendly message if license is invalid
      */
     suspend fun validateOrThrow() {
         val licenseKey = getLicenseKey()
-        if (licenseKey.isBlank()) {
-            throw RuntimeException("BGFLIX: License key not set. Please enter your license key in plugin settings.")
-        }
 
         // Check cache first
         val cached = getCachedResult()
         if (cached == true) return
         if (cached == false) {
-            throw RuntimeException("BGFLIX: License invalid or expired. Please check your license key in plugin settings.")
+            throw RuntimeException("BGFLIX: Deneme süreniz veya lisansınız geçersiz. Lütfen ayarlardan lisansınızı kontrol edin.")
         }
 
         // Hit the API
@@ -121,24 +120,31 @@ object LicenseManager {
             val json = JSONObject(response)
             val valid = json.optBoolean("valid", false)
             val reason = json.optString("reason", "unknown")
+            val message = json.optString("message", "")
+            val serverKey = json.optString("license_key", "")
 
             setCachedResult(valid)
 
-            if (!valid) {
-                val message = when (reason) {
-                    "license_not_found" -> "BGFLIX: License key not found."
-                    "license_expired" -> "BGFLIX: License has expired."
-                    "device_limit_reached" -> "BGFLIX: Device limit reached for this license."
-                    else -> "BGFLIX: License invalid ($reason)."
+            if (valid) {
+                // If a new trial key was generated or returned by server, automatically save it!
+                if (licenseKey.isBlank() && serverKey.isNotBlank()) {
+                    saveLicenseKey(serverKey)
+                    showToast(appContext, "BGFLIX: 30 Günlük Ücretsiz Deneme Aktif!")
                 }
-                throw RuntimeException(message)
+            } else {
+                val errorMsg = when (reason) {
+                    "trial_expired", "license_expired" -> "BGFLIX: 30 günlük deneme süreniz doldu. Lütfen lisans satın alın."
+                    "device_limit_reached" -> "BGFLIX: Cihaz limiti doldu."
+                    else -> if (message.isNotBlank()) "BGFLIX: $message" else "BGFLIX: Lisans geçersiz ($reason)."
+                }
+                throw RuntimeException(errorMsg)
             }
         } catch (e: RuntimeException) {
             // Re-throw our own RuntimeExceptions (license errors)
             throw e
         } catch (e: Exception) {
             // Network errors: fail-closed (block access)
-            throw RuntimeException("BGFLIX: Could not verify license. Check your internet connection.")
+            throw RuntimeException("BGFLIX: Lisans doğrulanamadı. İnternet bağlantınızı kontrol edin.")
         }
     }
 
