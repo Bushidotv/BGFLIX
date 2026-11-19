@@ -243,6 +243,78 @@ async def validate_license(request: Request):
     })
 
 
+
+# ---------------------------------------------------------------------------
+# SİTEDEN SİPARİŞ / LİSANS ÜRETME ENDPOİNTİ (plashtane.html)
+# ---------------------------------------------------------------------------
+@app.post("/api/create_order")
+@app.post("/create_order")
+async def create_order(request: Request):
+    try:
+        body = await request.json()
+    except Exception:
+        body = {}
+
+    plan = body.get("plan", "3-months")
+    contact = (body.get("contact") or "").strip()
+    txid = (body.get("txid") or "").strip()
+    hwid = (body.get("hwid") or "").strip()
+
+    if not contact:
+        rnd = uuid.uuid4().hex[:6]
+        contact = f"guest_{rnd}@bgflix.tv"
+
+    now = get_now_utc()
+    if plan == "1-month":
+        days = 30
+        max_dev = 1
+    elif plan == "12-months":
+        days = 365
+        max_dev = 3
+    else:  # 3-months default
+        days = 90
+        max_dev = 2
+
+    expire = now + timedelta(days=days)
+    k1 = uuid.uuid4().hex[:4].upper()
+    k2 = uuid.uuid4().hex[:4].upper()
+    new_license_key = f"BGFLIX-{k1}-{k2}"
+
+    record = {
+        "email": contact,
+        "license_key": new_license_key,
+        "status": "active",
+        "expire_date": expire.isoformat(),
+        "device_ids": [hwid] if hwid else [],
+        "is_trial": False,
+        "created_at": now.isoformat(),
+    }
+
+    try:
+        sb = get_supabase_client()
+        sb.table("licenses").insert(record).execute()
+    except Exception as e:
+        try:
+            minimal = {
+                "email": contact,
+                "license_key": new_license_key,
+                "status": "active",
+                "expire_date": expire.isoformat(),
+                "device_ids": [hwid] if hwid else []
+            }
+            sb.table("licenses").insert(minimal).execute()
+        except Exception as e2:
+            return JSONResponse(status_code=500, content={"success": False, "error": str(e2)})
+
+    return JSONResponse(content={
+        "success": True,
+        "license_key": new_license_key,
+        "expire_date": expire.isoformat(),
+        "days": days,
+        "plan": plan
+    })
+
+
 @app.get("/api/health")
 @app.get("/health")
 async def health():
