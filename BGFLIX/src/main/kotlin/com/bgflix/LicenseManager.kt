@@ -106,7 +106,7 @@ object LicenseManager {
         val cached = getCachedResult()
         if (cached == true) return
         if (cached == false) {
-            throw RuntimeException("BGFLIX: Deneme süreniz veya lisansınız geçersiz. Lütfen ayarlardan lisansınızı kontrol edin.")
+            throw RuntimeException("BGFLIX: Вашият пробен период или лиценз е невалиден. Моля, проверете настройките.")
         }
 
         // Hit the API
@@ -129,13 +129,13 @@ object LicenseManager {
                 // If a new trial key was generated or returned by server, automatically save it!
                 if (licenseKey.isBlank() && serverKey.isNotBlank()) {
                     saveLicenseKey(serverKey)
-                    showToast(appContext, "BGFLIX: 30 Günlük Ücretsiz Deneme Aktif!")
+                    showToast(appContext, "BGFLIX: 30 дни безплатен пробен период са активни!")
                 }
             } else {
                 val errorMsg = when (reason) {
-                    "trial_expired", "license_expired" -> "BGFLIX: 30 günlük deneme süreniz doldu. Lütfen lisans satın alın."
-                    "device_limit_reached" -> "BGFLIX: Cihaz limiti doldu."
-                    else -> if (message.isNotBlank()) "BGFLIX: $message" else "BGFLIX: Lisans geçersiz ($reason)."
+                    "trial_expired", "license_expired" -> "BGFLIX: 30-дневният пробен период изтече. Моля, купете абонамент."
+                    "device_limit_reached" -> "BGFLIX: Достигнат е лимитът за брой устройства."
+                    else -> if (message.isNotBlank()) "BGFLIX: $message" else "BGFLIX: Невалиден лиценз ($reason)."
                 }
                 throw RuntimeException(errorMsg)
             }
@@ -144,7 +144,7 @@ object LicenseManager {
             throw e
         } catch (e: Exception) {
             // Network errors: fail-closed (block access)
-            throw RuntimeException("BGFLIX: Lisans doğrulanamadı. İnternet bağlantınızı kontrol edin.")
+            throw RuntimeException("BGFLIX: Лицензът не може да бъде проверен. Проверете интернет връзката си.")
         }
     }
 
