@@ -775,7 +775,7 @@ class BGFLIXProvider : MainAPI() {
             } else {
                 "https://bulgarian-subs-addon.onrender.com/subtitles/movie/$imdbId.json"
             }
-            val subResp = app.get(subUrl, timeout = 12).text
+            val subResp = app.get(subUrl, timeout = 4).text
             val json = JSONObject(subResp)
             val subArr = json.optJSONArray("subtitles") ?: return
             for (i in 0 until subArr.length()) {
@@ -1036,7 +1036,7 @@ class BGFLIXProvider : MainAPI() {
         return false
     }
 
-    private fun emitRecTvSources(sources: JSONArray, callback: (ExtractorLink) -> Unit): Boolean {
+    private suspend fun emitRecTvSources(sources: JSONArray, callback: (ExtractorLink) -> Unit): Boolean {
         var found = false
         for (i in 0 until sources.length()) {
             val src = sources.optJSONObject(i) ?: continue
@@ -1082,11 +1082,6 @@ class BGFLIXProvider : MainAPI() {
         val episode = parts.getOrNull(4)?.toIntOrNull()
         val rawTitle = if (type == "series") parts.getOrNull(5) else parts.getOrNull(3)
 
-        // 1. Fetch authentic Bulgarian subtitles in background (NON-BLOCKING) so video starts immediately
-        ioSafe {
-            fetchBulgarianSubtitles(imdbId, season, episode, subtitleCallback)
-        }
-
         // Get movie title for RecTV lookup
         val title = if (!rawTitle.isNullOrBlank()) rawTitle else {
             try {
@@ -1095,10 +1090,15 @@ class BGFLIXProvider : MainAPI() {
             } catch (e: Exception) { "" }
         }
 
-        // 2. RecTV — Primary high-quality source (1920x1040 Full HD direct HLS)
+        // 1. RecTV — Primary high-quality source (1920x1040 Full HD direct HLS, instant load)
         try {
             val recFound = loadRecTvLinks(title, type, season, episode, callback)
             if (recFound) foundAny = true
+        } catch (e: Exception) { }
+
+        // 2. Fetch Bulgarian subtitles (fast timeout so it never blocks playback)
+        try {
+            fetchBulgarianSubtitles(imdbId, season, episode, subtitleCallback)
         } catch (e: Exception) { }
 
         // 3. VixSrc Direct High-Speed HLS Streams (Fallback when RecTV has no match)
