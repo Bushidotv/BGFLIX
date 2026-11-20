@@ -97,7 +97,7 @@ async def validate_license(request: Request):
                 return JSONResponse(content={
                     "valid": False,
                     "reason": "invalid_status",
-                    "message": f"Lisans durumu: {status}",
+                    "message": f"Статус на лиценза: {status}",
                     "status": status
                 })
 
@@ -111,7 +111,7 @@ async def validate_license(request: Request):
                         return JSONResponse(content={
                             "valid": False,
                             "reason": "license_expired",
-                            "message": "Lisans süreniz dolmuştur.",
+                            "message": "Лицензът ви е изтекъл.",
                             "status": "expired"
                         })
                     days_left = (exp_dt - now).days
@@ -126,7 +126,7 @@ async def validate_license(request: Request):
                     "license_key": license_key,
                     "days_left": days_left,
                     "status": "active",
-                    "message": "Lisans geçerli."
+                    "message": "Лицензът е валиден."
                 })
 
             if len(device_ids) < max_devices:
@@ -138,13 +138,13 @@ async def validate_license(request: Request):
                     "license_key": license_key,
                     "days_left": days_left,
                     "status": "active",
-                    "message": "Cihaz lisansa bağlandı."
+                    "message": "Устройството е успешно свързано към лиценза."
                 })
             else:
                 return JSONResponse(content={
                     "valid": False,
                     "reason": "device_limit_reached",
-                    "message": "Lisans cihaz limiti doldu."
+                    "message": "Лимитът за брой устройства към този лиценз е достигнат."
                 })
 
     # 2. Key boşsa veya bulunamadıysa -> HWID bazlı Trial kontrolü
@@ -167,7 +167,7 @@ async def validate_license(request: Request):
             return JSONResponse(content={
                 "valid": False,
                 "reason": "trial_expired",
-                "message": "Deneme süreniz dolmuştur.",
+                "message": "Пробният ви период изтече. Моля, купете абонамент.",
                 "status": status,
                 "license_key": key
             })
@@ -181,7 +181,7 @@ async def validate_license(request: Request):
                     return JSONResponse(content={
                         "valid": False,
                         "reason": "trial_expired",
-                        "message": "30 günlük deneme süreniz dolmuştur.",
+                        "message": "30-дневният пробен период изтече. Моля, купете абонамент.",
                         "status": "expired",
                         "license_key": key
                     })
@@ -192,7 +192,7 @@ async def validate_license(request: Request):
         return JSONResponse(content={
             "valid": True,
             "reason": "trial_active",
-            "message": f"Deneme süresi aktif. {days_left} gün kaldı.",
+            "message": f"Пробният период е активен. Оставащи дни: {days_left}.",
             "license_key": key,
             "days_left": days_left,
             "status": "active"
@@ -235,7 +235,7 @@ async def validate_license(request: Request):
     return JSONResponse(content={
         "valid": True,
         "reason": "trial_created",
-        "message": "30 günlük deneme süresi başlatıldı.",
+        "message": "30 дни безплатен пробен период са активирани.",
         "license_key": trial_key,
         "days_left": 30,
         "expire_date": expire.isoformat(),
