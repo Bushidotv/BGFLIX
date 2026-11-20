@@ -744,9 +744,9 @@ class BGFLIXProvider : MainAPI() {
             }
         } else {
             val dataPayload = if (!imdbId.isNullOrBlank()) {
-                "filmifen|$url|$imdbId"
+                "filmifen|$url|$imdbId|$title"
             } else {
-                "filmifen|$url|"
+                "filmifen|$url||$title"
             }
 
             newMovieLoadResponse(title, url, TvType.Movie, dataPayload) {
@@ -932,27 +932,14 @@ class BGFLIXProvider : MainAPI() {
         return mac.doFinal(message.toByteArray(Charsets.UTF_8)).joinToString("") { "%02x".format(it) }
     }
 
-    private suspend fun getRecNonce(): String? {
-        return try {
-            val response = app.get(
-                "$recTvBase/api/attest/nonce",
-                headers = mapOf("User-Agent" to "googleusercontent"),
-                timeout = 4
-            )
-            JSONObject(response.text).optString("nonce", null)
-        } catch (e: Exception) {
-            null
-        }
-    }
-
-    private suspend fun signedRecHeaders(method: String, path: String, body: String = ""): Map<String, String> {
+    private fun signedRecHeaders(method: String, path: String, body: String = ""): Map<String, String> {
         val ts        = (System.currentTimeMillis() / 1000L).toString()
         val nonce     = UUID.randomUUID().toString()
         val bodyHash  = sha256Hex(body)
         val message   = "$method\n$path\n$ts\n$nonce\n$bodyHash"
         val signature = hmacSha256Hex(recTvHmacKey, message)
         
-        val headers = mutableMapOf(
+        return mapOf(
             "User-Agent"    to "googleusercontent",
             "Referer"       to "https://twitter.com/",
             "X-Timestamp"   to ts,
@@ -961,12 +948,6 @@ class BGFLIXProvider : MainAPI() {
             "X-App-Version" to recTvAppVer,
             "X-Client-Id"   to recTvClient
         )
-
-        getRecNonce()?.let {
-            headers["Authorization"] = "Bearer $it"
-        }
-
-        return headers
     }
 
     private suspend fun loadRecTvLinks(
@@ -982,57 +963,65 @@ class BGFLIXProvider : MainAPI() {
             .trim()
         if (cleanTitle.isBlank()) return false
 
-        try {
-            val encTitle = URLEncoder.encode(cleanTitle, "UTF-8")
-            val path = "/api/search/$encTitle/$recTvKey/"
-            val headers = signedRecHeaders("GET", path)
-            val searchResp = app.get("$recTvBase$path", headers = headers, timeout = 5).text
-            if (searchResp.isBlank()) return false
+        val queries = mutableListOf(cleanTitle)
+        val baseTitle = cleanTitle.substringBefore(":").substringBefore("-").trim()
+        if (baseTitle != cleanTitle && baseTitle.length >= 3) {
+            queries.add(baseTitle)
+        }
 
-            val searchJson = JSONObject(searchResp)
-            val posters = searchJson.optJSONArray("posters") ?: return false
-            if (posters.length() == 0) return false
+        for (query in queries) {
+            try {
+                val encTitle = URLEncoder.encode(query, "UTF-8")
+                val path = "/api/search/$encTitle/$recTvKey/"
+                val headers = signedRecHeaders("GET", path)
+                val searchResp = app.get("$recTvBase$path", headers = headers, timeout = 6).text
+                if (searchResp.isBlank()) continue
 
-            for (i in 0 until minOf(posters.length(), 4)) {
-                val item = posters.optJSONObject(i) ?: continue
-                val recId = item.optInt("id", -1)
-                val recType = item.optString("type", "movie")
-                if (recId < 0) continue
+                val searchJson = JSONObject(searchResp)
+                val posters = searchJson.optJSONArray("posters") ?: continue
+                if (posters.length() == 0) continue
 
-                if (type == "series" && recType == "serie" && season != null && episode != null) {
-                    val sPath = "/api/season/by/serie/$recId/$recTvKey/"
-                    val sHeaders = signedRecHeaders("GET", sPath)
-                    val sResp = app.get("$recTvBase$sPath", headers = sHeaders, timeout = 5).text
-                    val seasons = JSONArray(sResp)
-                    for (s in 0 until seasons.length()) {
-                        val seasonObj = seasons.optJSONObject(s) ?: continue
-                        val sTitle = seasonObj.optString("title", "")
-                        val sNum = Regex("""\d+""").find(sTitle)?.value?.toIntOrNull()
-                        if (sNum == season || seasons.length() == 1) {
-                            val eps = seasonObj.optJSONArray("episodes") ?: continue
-                            for (e in 0 until eps.length()) {
-                                val epObj = eps.optJSONObject(e) ?: continue
-                                val epTitle = epObj.optString("title", "")
-                                val epNum = Regex("""\d+""").find(epTitle)?.value?.toIntOrNull()
-                                if (epNum == episode) {
-                                    val sources = epObj.optJSONArray("sources") ?: continue
-                                    if (emitRecTvSources(sources, callback)) return true
+                for (i in 0 until minOf(posters.length(), 4)) {
+                    val item = posters.optJSONObject(i) ?: continue
+                    val recId = item.optInt("id", -1)
+                    val recType = item.optString("type", "")
+                    if (recId < 0) continue
+
+                    if (type == "series" && season != null && episode != null) {
+                        val sPath = "/api/season/by/serie/$recId/$recTvKey/"
+                        val sHeaders = signedRecHeaders("GET", sPath)
+                        val sResp = app.get("$recTvBase$sPath", headers = sHeaders, timeout = 6).text
+                        val seasons = JSONArray(sResp)
+                        for (s in 0 until seasons.length()) {
+                            val seasonObj = seasons.optJSONObject(s) ?: continue
+                            val sTitle = seasonObj.optString("title", "")
+                            val sNum = Regex("""\d+""").find(sTitle)?.value?.toIntOrNull()
+                            if (sNum == season || seasons.length() == 1) {
+                                val eps = seasonObj.optJSONArray("episodes") ?: continue
+                                for (e in 0 until eps.length()) {
+                                    val epObj = eps.optJSONObject(e) ?: continue
+                                    val epTitle = epObj.optString("title", "")
+                                    val epNum = Regex("""\d+""").find(epTitle)?.value?.toIntOrNull()
+                                    if (epNum == episode) {
+                                        val sources = epObj.optJSONArray("sources") ?: continue
+                                        if (emitRecTvSources(sources, callback)) return true
+                                    }
                                 }
                             }
                         }
-                    }
-                } else if (type != "series" && recType == "movie") {
-                    val mPath = "/api/movie/by/$recId/$recTvKey/"
-                    val mHeaders = signedRecHeaders("GET", mPath)
-                    val mResp = app.get("$recTvBase$mPath", headers = mHeaders, timeout = 5).text
-                    val mJson = JSONObject(mResp)
-                    val sources = mJson.optJSONArray("sources") ?: continue
-                    if (sources.length() > 0) {
-                        if (emitRecTvSources(sources, callback)) return true
+                    } else if (type != "series" && recType != "serie") {
+                        val mPath = "/api/movie/by/$recId/$recTvKey/"
+                        val mHeaders = signedRecHeaders("GET", mPath)
+                        val mResp = app.get("$recTvBase$mPath", headers = mHeaders, timeout = 6).text
+                        val mJson = JSONObject(mResp)
+                        val sources = mJson.optJSONArray("sources") ?: continue
+                        if (sources.length() > 0) {
+                            if (emitRecTvSources(sources, callback)) return true
+                        }
                     }
                 }
-            }
-        } catch (e: Exception) { }
+            } catch (e: Exception) { }
+        }
         return false
     }
 
@@ -1049,7 +1038,7 @@ class BGFLIXProvider : MainAPI() {
             callback.invoke(
                 newExtractorLink(
                     source = name,
-                    name = "$name - RecTV $srcTitle",
+                    name = "$name - RecTV $srcTitle (1080p)",
                     url = srcUrl,
                     type = linkType
                 ) {
@@ -1077,7 +1066,7 @@ class BGFLIXProvider : MainAPI() {
         if (imdbId.isBlank()) return false
 
         val parts = data.split("|")
-        val type = if (data.contains("series")) "series" else "movie"
+        val type = if (parts.getOrNull(2) == "movie") "movie" else if (data.contains("series")) "series" else "movie"
         val season = parts.getOrNull(3)?.toIntOrNull()
         val episode = parts.getOrNull(4)?.toIntOrNull()
         val rawTitle = if (type == "series") parts.getOrNull(5) else parts.getOrNull(3)
@@ -1257,11 +1246,13 @@ class BGFLIXProvider : MainAPI() {
         val parts = data.split("|")
         val filmifenUrl2 = parts.getOrElse(1) { "" }
         val imdbId = parts.getOrElse(2) { "" }
+        val movieTitle = parts.getOrElse(3) { "" }
 
         if (filmifenUrl2.isBlank()) return false
 
-        if (imdbId.isNotBlank()) {
-            val hdFound = loadHDLinks(imdbId, subtitleCallback, callback)
+        if (imdbId.isNotBlank() || movieTitle.isNotBlank()) {
+            val hdPayload = "$imdbId||movie|$movieTitle"
+            val hdFound = loadHDLinks(hdPayload, subtitleCallback, callback)
             if (hdFound) foundAny = true
         }
 
