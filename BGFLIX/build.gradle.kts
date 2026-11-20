@@ -3,7 +3,7 @@ dependencies {
     implementation("androidx.recyclerview:recyclerview:1.3.2")
 }
 
-version = 18
+version = 19
 
 cloudstream {
     description = "BGFLIX - Български Телевизионни Канали, Филми и Сериали."
